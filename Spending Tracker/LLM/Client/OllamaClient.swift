@@ -1,5 +1,11 @@
 import Foundation
 
+private enum ThinkingStreamState {
+    case none
+    case open
+    case closed
+}
+
 final class OllamaClient: LLMClient, @unchecked Sendable {
     private let config: LLMConfig
     private let session: URLSession
@@ -44,11 +50,28 @@ final class OllamaClient: LLMClient, @unchecked Sendable {
                     }
                     var accumulated = ""
                     var accumulatedToolCalls: [LLMToolCall] = []
+                    var thinkingState: ThinkingStreamState = .none
                     for try await line in bytes.lines {
                         guard let data = line.data(using: .utf8), !data.isEmpty else { continue }
                         guard let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
                         if let msg = obj["message"] as? [String: Any] {
+                            if let thinking = msg["thinking"] as? String, !thinking.isEmpty {
+                                if thinkingState == .none {
+                                    let open = "<think>"
+                                    accumulated += open
+                                    continuation.yield(.textDelta(open))
+                                    thinkingState = .open
+                                }
+                                accumulated += thinking
+                                continuation.yield(.textDelta(thinking))
+                            }
                             if let content = msg["content"] as? String, !content.isEmpty {
+                                if thinkingState == .open {
+                                    let close = "</think>\n\n"
+                                    accumulated += close
+                                    continuation.yield(.textDelta(close))
+                                    thinkingState = .closed
+                                }
                                 accumulated += content
                                 continuation.yield(.textDelta(content))
                             }
@@ -67,6 +90,12 @@ final class OllamaClient: LLMClient, @unchecked Sendable {
                             }
                         }
                         if let done = obj["done"] as? Bool, done {
+                            if thinkingState == .open {
+                                let close = "</think>"
+                                accumulated += close
+                                continuation.yield(.textDelta(close))
+                                thinkingState = .closed
+                            }
                             let finalMessage = LLMMessage(
                                 role: .assistant,
                                 content: accumulated,
@@ -97,6 +126,7 @@ final class OllamaClient: LLMClient, @unchecked Sendable {
         var body: [String: Any] = [
             "model": config.model,
             "stream": stream,
+            "think": true,
             "messages": sanitized.map(encodeMessage),
             "options": ["temperature": config.temperature]
         ]
@@ -191,7 +221,14 @@ final class OllamaClient: LLMClient, @unchecked Sendable {
         guard let msg = obj["message"] as? [String: Any] else {
             throw LLMError.decoding("No message")
         }
-        let content = (msg["content"] as? String) ?? ""
+        let rawContent = (msg["content"] as? String) ?? ""
+        let thinking = (msg["thinking"] as? String) ?? ""
+        let content: String
+        if thinking.isEmpty {
+            content = rawContent
+        } else {
+            content = "<think>\(thinking)</think>\n\n\(rawContent)"
+        }
         var toolCalls: [LLMToolCall] = []
         if let calls = msg["tool_calls"] as? [[String: Any]] {
             for raw in calls {

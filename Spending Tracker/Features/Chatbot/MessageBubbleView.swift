@@ -40,9 +40,7 @@ struct MessageBubbleView: View {
         case .tool:
             EmptyView()
         case .assistant:
-            if !message.content.isEmpty {
-                MarkdownRenderer(text: message.content)
-            }
+            assistantContent
         case .user:
             Text(message.content)
                 .textSelection(.enabled)
@@ -50,6 +48,19 @@ struct MessageBubbleView: View {
             Text(message.content)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var assistantContent: some View {
+        let parts = ThinkingParser.parse(message.content)
+        VStack(alignment: .leading, spacing: 6) {
+            if parts.hasThinking {
+                ThinkingDisclosure(blocks: parts.blocks, streaming: parts.streaming)
+            }
+            if !parts.answer.isEmpty {
+                MarkdownRenderer(text: parts.answer)
+            }
         }
     }
 
