@@ -108,10 +108,8 @@ struct ThinkingDisclosure: View {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
                         if !block.isEmpty {
-                            Text(block)
-                                .font(.callout)
+                            MarkdownRenderer(text: block)
                                 .foregroundStyle(.secondary)
-                                .textSelection(.enabled)
                                 .padding(10)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .background(
