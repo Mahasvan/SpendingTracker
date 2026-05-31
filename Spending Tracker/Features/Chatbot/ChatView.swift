@@ -5,7 +5,7 @@ struct ChatView: View {
     @Bindable var settings: AppSettings
     @State private var draft: String = ""
     @State private var showSettings = false
-    @FocusState private var inputFocused: Bool
+    @State private var requestInputFocus: Bool = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -95,20 +95,21 @@ struct ChatView: View {
 
     private var inputBar: some View {
         HStack(spacing: 8) {
-            TextField("Message", text: $draft, axis: .vertical)
-                .textFieldStyle(.plain)
-                .lineLimit(1...5)
-                .font(.body)
-                .focused($inputFocused)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(
-                    Capsule().fill(.background.secondary)
-                )
-                .overlay(
-                    Capsule().stroke(.separator, lineWidth: 0.5)
-                )
-                .onSubmit(sendDraft)
+            SpellCheckedTextField(
+                text: $draft,
+                focusRequest: $requestInputFocus,
+                placeholder: "Message",
+                maxLines: 5,
+                onSubmit: sendDraft
+            )
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(
+                Capsule().fill(.background.secondary)
+            )
+            .overlay(
+                Capsule().stroke(.separator, lineWidth: 0.5)
+            )
 
             Button(action: sendDraft) {
                 Image(systemName: "arrow.up")
@@ -120,7 +121,6 @@ struct ChatView: View {
                     )
             }
             .buttonStyle(.plain)
-            .keyboardShortcut(.return, modifiers: [])
             .disabled(!canSend)
         }
         .padding(.horizontal, 10)
@@ -157,7 +157,7 @@ struct ChatView: View {
 
     private func handleSuggestion(_ s: ChatSuggestion) {
         draft = s.prompt
-        inputFocused = true
+        requestInputFocus = true
     }
 
     private func toolResultsMap() -> [String: LLMMessage] {
