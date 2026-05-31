@@ -1,32 +1,32 @@
-//
-//  Spending_TrackerApp.swift
-//  Spending Tracker
-//
-//  Created by Mahasvan on 31/05/26.
-//
-
 import SwiftUI
 import SwiftData
 
 @main
 struct Spending_TrackerApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+    @State private var container: AppContainer
 
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
+    init() {
+        let modelContainer = PersistenceController.makeContainer(inMemory: false)
+        _container = State(initialValue: AppContainer(modelContainer: modelContainer))
+    }
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(container: container)
         }
-        .modelContainer(sharedModelContainer)
+        .modelContainer(container.modelContainer)
+        .windowResizability(.contentSize)
+        .commands {
+            CommandGroup(replacing: .newItem) {
+                Button("New Transaction") {
+                    NotificationCenter.default.post(name: .newTransactionRequested, object: nil)
+                }
+                .keyboardShortcut("n", modifiers: [.command])
+            }
+        }
     }
+}
+
+extension Notification.Name {
+    static let newTransactionRequested = Notification.Name("newTransactionRequested")
 }
