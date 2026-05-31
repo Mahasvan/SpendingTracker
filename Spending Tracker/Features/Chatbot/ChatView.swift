@@ -11,32 +11,39 @@ struct ChatView: View {
         VStack(spacing: 0) {
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 12) {
-                        let results = toolResultsMap()
-                        ForEach(Array(visibleMessages().enumerated()), id: \.offset) { idx, msg in
-                            MessageBubbleView(message: msg, toolResults: results)
-                                .id(idx)
+                    if isEmptyState {
+                        ChatSuggestionsView(suggestions: ChatSuggestion.defaults) { s in
+                            handleSuggestion(s)
                         }
-                        if !service.streamingAssistantText.isEmpty {
-                            MessageBubbleView(message: LLMMessage(
-                                role: .assistant,
-                                content: service.streamingAssistantText
-                            ))
-                            .id("streaming")
+                        .frame(minHeight: 420)
+                    } else {
+                        VStack(alignment: .leading, spacing: 12) {
+                            let results = toolResultsMap()
+                            ForEach(Array(visibleMessages().enumerated()), id: \.offset) { idx, msg in
+                                MessageBubbleView(message: msg, toolResults: results)
+                                    .id(idx)
+                            }
+                            if !service.streamingAssistantText.isEmpty {
+                                MessageBubbleView(message: LLMMessage(
+                                    role: .assistant,
+                                    content: service.streamingAssistantText
+                                ))
+                                .id("streaming")
+                            }
+                            if showTypingIndicator {
+                                TypingIndicator().id("typing")
+                            }
+                            if let confirm = service.pendingConfirmation {
+                                ToolConfirmView(
+                                    request: confirm,
+                                    onApprove: { Task { await service.approve(confirm) } },
+                                    onReject: { Task { await service.reject(confirm) } }
+                                )
+                                .id("confirm")
+                            }
                         }
-                        if showTypingIndicator {
-                            TypingIndicator().id("typing")
-                        }
-                        if let confirm = service.pendingConfirmation {
-                            ToolConfirmView(
-                                request: confirm,
-                                onApprove: { Task { await service.approve(confirm) } },
-                                onReject: { Task { await service.reject(confirm) } }
-                            )
-                            .id("confirm")
-                        }
+                        .padding()
                     }
-                    .padding()
                 }
                 .onChange(of: service.messages.count) { _, _ in
                     withAnimation { proxy.scrollTo(service.messages.count - 1, anchor: .bottom) }
@@ -139,6 +146,18 @@ struct ChatView: View {
 
     private func visibleMessages() -> [LLMMessage] {
         service.messages.filter { $0.role != .system && $0.role != .tool }
+    }
+
+    private var isEmptyState: Bool {
+        visibleMessages().isEmpty
+            && service.streamingAssistantText.isEmpty
+            && service.pendingConfirmation == nil
+            && !service.isBusy
+    }
+
+    private func handleSuggestion(_ s: ChatSuggestion) {
+        draft = s.prompt
+        inputFocused = true
     }
 
     private func toolResultsMap() -> [String: LLMMessage] {
