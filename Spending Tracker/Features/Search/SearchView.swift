@@ -17,13 +17,16 @@ struct SearchView: View {
                     systemImage: "magnifyingglass",
                     description: Text("Adjust filters and try again.")
                 )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List(viewModel.results, id: \.id) { tx in
                     TransactionRowView(transaction: tx)
                 }
                 .listStyle(.inset)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .navigationTitle("Search")
         .onAppear {
             viewModel.loadFilters()
@@ -107,6 +110,7 @@ struct SearchView: View {
                 }
             }
         }
+        .frame(height: 32)
     }
 
     private var paymentMethodsChips: some View {
@@ -128,5 +132,6 @@ struct SearchView: View {
                 }
             }
         }
+        .frame(height: 32)
     }
 }

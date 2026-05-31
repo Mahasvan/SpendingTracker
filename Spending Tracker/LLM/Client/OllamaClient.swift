@@ -92,10 +92,12 @@ final class OllamaClient: LLMClient, @unchecked Sendable {
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
+        let sanitized = sanitizeHistory(messages)
+
         var body: [String: Any] = [
             "model": config.model,
             "stream": stream,
-            "messages": messages.map(encodeMessage),
+            "messages": sanitized.map(encodeMessage),
             "options": ["temperature": config.temperature]
         ]
         if !tools.isEmpty {
@@ -123,6 +125,38 @@ final class OllamaClient: LLMClient, @unchecked Sendable {
             }
         }
         return dict
+    }
+
+    private func sanitizeHistory(_ messages: [LLMMessage]) -> [LLMMessage] {
+        messages.map { m in
+            guard m.role == .assistant else { return m }
+            let stripped = Self.stripThinking(m.content)
+            if stripped == m.content { return m }
+            return LLMMessage(
+                role: m.role,
+                content: stripped,
+                name: m.name,
+                toolCallId: m.toolCallId,
+                toolCalls: m.toolCalls
+            )
+        }
+    }
+
+    private static let thinkingPatterns: [String] = [
+        #"<think>[\s\S]*?</think>"#,
+        #"<thinking>[\s\S]*?</thinking>"#,
+        #"<reasoning>[\s\S]*?</reasoning>"#,
+        #"<reflection>[\s\S]*?</reflection>"#
+    ]
+
+    static func stripThinking(_ content: String) -> String {
+        var result = content
+        for pattern in thinkingPatterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { continue }
+            let range = NSRange(result.startIndex..., in: result)
+            result = regex.stringByReplacingMatches(in: result, options: [], range: range, withTemplate: "")
+        }
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func encodeTool(_ t: LLMToolSchema) -> [String: Any] {

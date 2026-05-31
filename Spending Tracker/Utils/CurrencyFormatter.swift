@@ -25,4 +25,13 @@ enum CurrencyFormatter {
             .trimmingCharacters(in: .whitespaces)
         return Decimal(string: cleaned)
     }
+
+    static func editString(_ amount: Decimal) -> String {
+        let nf = NumberFormatter()
+        nf.numberStyle = .decimal
+        nf.usesGroupingSeparator = false
+        nf.maximumFractionDigits = 2
+        nf.minimumFractionDigits = 0
+        return nf.string(from: amount as NSDecimalNumber) ?? "\(amount)"
+    }
 }

@@ -70,9 +70,11 @@ struct TransactionEditorView: View {
             ToolbarItemGroup(placement: .confirmationAction) {
                 Button("Save") { save() }
                     .keyboardShortcut(.return, modifiers: [.command])
+                    .help("Save changes (⌘Return)")
             }
             ToolbarItemGroup(placement: .cancellationAction) {
                 Button("Cancel") { dismiss() }
+                    .help("Discard changes and close")
             }
             if case .edit(let tx) = mode, let onDelete {
                 ToolbarItem(placement: .destructiveAction) {
@@ -80,6 +82,7 @@ struct TransactionEditorView: View {
                         onDelete(tx)
                         dismiss()
                     } label: { Text("Delete") }
+                    .help("Delete this transaction")
                 }
             }
         }

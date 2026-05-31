@@ -33,6 +33,7 @@ struct DashboardView: View {
                     editorPresented = true
                 } label: { Label("Quick Add", systemImage: "plus") }
                 .keyboardShortcut("n", modifiers: [.command])
+                .help("Add a new transaction (⌘N)")
             }
         }
         .onAppear {

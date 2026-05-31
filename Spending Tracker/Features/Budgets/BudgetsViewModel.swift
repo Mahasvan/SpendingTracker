@@ -16,6 +16,51 @@ struct BudgetStatus: Identifiable, Sendable {
     }
 }
 
+enum BudgetRangeSelection: Equatable {
+    case thisMonth
+    case lastMonth
+    case specificMonth(year: Int, month: Int)
+    case custom(start: Date, end: Date)
+
+    var displayLabel: String {
+        switch self {
+        case .thisMonth: return "This Month"
+        case .lastMonth: return "Last Month"
+        case .specificMonth(let y, let m):
+            var comps = DateComponents()
+            comps.year = y; comps.month = m
+            if let d = Calendar.current.date(from: comps) {
+                let f = DateFormatter()
+                f.dateFormat = "LLLL yyyy"
+                return f.string(from: d)
+            }
+            return "\(m)/\(y)"
+        case .custom(let s, let e):
+            let f = DateFormatter()
+            f.dateStyle = .medium
+            return "\(f.string(from: s)) – \(f.string(from: e))"
+        }
+    }
+
+    func resolveRange() -> DateRange {
+        let cal = Calendar.current
+        switch self {
+        case .thisMonth:
+            return .thisMonth
+        case .lastMonth:
+            return .lastMonth
+        case .specificMonth(let y, let m):
+            var comps = DateComponents()
+            comps.year = y; comps.month = m
+            let start = cal.date(from: comps) ?? .now
+            let end = cal.date(byAdding: DateComponents(month: 1, second: -1), to: start) ?? start
+            return DateRange(start: start, end: end)
+        case .custom(let s, let e):
+            return DateRange(start: s, end: e)
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class BudgetsViewModel {
@@ -27,6 +72,7 @@ final class BudgetsViewModel {
     var statuses: [BudgetStatus] = []
     var categories: [Category] = []
     var errorMessage: String?
+    var rangeSelection: BudgetRangeSelection = .thisMonth
 
     init(
         repo: any BudgetRepository,
@@ -36,6 +82,11 @@ final class BudgetsViewModel {
         self.repo = repo
         self.txRepo = txRepo
         self.categoryRepo = categoryRepo
+    }
+
+    func setRange(_ selection: BudgetRangeSelection) {
+        rangeSelection = selection
+        load()
     }
 
     func load() {
@@ -72,7 +123,7 @@ final class BudgetsViewModel {
     }
 
     private func computeStatuses() -> [BudgetStatus] {
-        let range = DateRange.thisMonth
+        let range = rangeSelection.resolveRange()
         var q = TransactionQuery()
         q.dateFrom = range.start
         q.dateTo = range.end

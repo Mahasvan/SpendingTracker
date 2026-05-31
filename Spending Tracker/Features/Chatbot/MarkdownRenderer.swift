@@ -18,8 +18,8 @@ struct MarkdownRenderer: View {
             Text(inlineMarkdown(content))
                 .font(headingFont(level))
                 .bold()
-        case .codeBlock(let lang, let body):
-            CodeBlockView(language: lang, body: body)
+        case .codeBlock(let lang, let code):
+            CodeBlockView(language: lang, code: code)
         case .paragraph(let body):
             Text(inlineMarkdown(body))
                 .textSelection(.enabled)
@@ -68,7 +68,7 @@ struct MarkdownRenderer: View {
 
 private enum MDBlock {
     case heading(Int, String)
-    case codeBlock(language: String, body: String)
+    case codeBlock(language: String, code: String)
     case paragraph(String)
     case bulletList([String])
     case numberedList([String])
@@ -77,7 +77,7 @@ private enum MDBlock {
 
 private struct CodeBlockView: View {
     let language: String
-    let body: String
+    let code: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -87,7 +87,7 @@ private struct CodeBlockView: View {
                     .foregroundStyle(.secondary)
             }
             ScrollView(.horizontal) {
-                Text(body)
+                Text(code)
                     .font(.system(.body, design: .monospaced))
                     .textSelection(.enabled)
                     .padding(10)
@@ -112,7 +112,7 @@ private func parseBlocks(_ text: String) -> [MDBlock] {
                 i += 1
             }
             if i < lines.count { i += 1 } // skip closing fence
-            blocks.append(.codeBlock(language: language, body: bodyLines.joined(separator: "\n")))
+            blocks.append(.codeBlock(language: language, code: bodyLines.joined(separator: "\n")))
             continue
         }
         if let h = parseHeading(line) {

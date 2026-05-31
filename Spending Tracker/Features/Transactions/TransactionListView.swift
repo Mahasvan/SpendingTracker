@@ -35,6 +35,7 @@ struct TransactionListView: View {
                     Label("Add", systemImage: "plus")
                 }
                 .keyboardShortcut("n", modifiers: [.command])
+                .help("Add a new transaction (⌘N)")
             }
         }
         .onAppear { viewModel.load() }

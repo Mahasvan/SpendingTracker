@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MessageBubbleView: View {
     let message: LLMMessage
+    var toolResults: [String: LLMMessage] = [:]
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -10,7 +11,7 @@ struct MessageBubbleView: View {
                 roleLabel
                 contentView
                 if let calls = message.toolCalls, !calls.isEmpty {
-                    toolCallsBadge(calls)
+                    ToolCallsDisclosure(calls: calls, results: toolResults)
                 }
             }
             Spacer(minLength: 0)
@@ -37,18 +38,11 @@ struct MessageBubbleView: View {
     private var contentView: some View {
         switch message.role {
         case .tool:
-            VStack(alignment: .leading, spacing: 4) {
-                Label("Tool: \(message.name ?? "?")", systemImage: "wrench.and.screwdriver")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(message.content)
-                    .font(.system(.caption, design: .monospaced))
-                    .padding(8)
-                    .background(.background.tertiary, in: RoundedRectangle(cornerRadius: 6))
-                    .textSelection(.enabled)
-            }
+            EmptyView()
         case .assistant:
-            MarkdownRenderer(text: message.content.isEmpty ? "_…_" : message.content)
+            if !message.content.isEmpty {
+                MarkdownRenderer(text: message.content)
+            }
         case .user:
             Text(message.content)
                 .textSelection(.enabled)
@@ -57,16 +51,6 @@ struct MessageBubbleView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-    }
-
-    private func toolCallsBadge(_ calls: [LLMToolCall]) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: "wrench.and.screwdriver.fill").font(.caption2)
-            Text("Calls: \(calls.map(\.name).joined(separator: ", "))")
-                .font(.caption2)
-        }
-        .padding(.horizontal, 6).padding(.vertical, 3)
-        .background(.background.tertiary, in: Capsule())
     }
 
     private var bubbleColor: Color {

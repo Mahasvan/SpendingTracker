@@ -11,7 +11,7 @@ final class ChatService {
 
     var pendingConfirmation: ToolConfirmRequest?
 
-    private let clientFactory: (LLMConfig) -> LLMClient
+    private let clientFactory: @MainActor (LLMConfig) -> LLMClient
     private let registry: ToolRegistry
     private let toolContext: ToolContext
     private let settings: AppSettings
@@ -27,7 +27,7 @@ final class ChatService {
     """
 
     init(
-        clientFactory: @escaping (LLMConfig) -> LLMClient = { LLMClientFactory.make($0) },
+        clientFactory: @escaping @MainActor (LLMConfig) -> LLMClient = { LLMClientFactory.make($0) },
         registry: ToolRegistry,
         toolContext: ToolContext,
         settings: AppSettings

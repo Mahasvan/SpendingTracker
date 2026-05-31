@@ -2,18 +2,20 @@ import SwiftUI
 
 struct ChatView: View {
     @State var service: ChatService
+    @Bindable var settings: AppSettings
     @State private var draft: String = ""
+    @State private var showSettings = false
+    @FocusState private var inputFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
-                        ForEach(Array(service.messages.enumerated()), id: \.offset) { idx, msg in
-                            if msg.role != .system {
-                                MessageBubbleView(message: msg)
-                                    .id(idx)
-                            }
+                        let results = toolResultsMap()
+                        ForEach(Array(visibleMessages().enumerated()), id: \.offset) { idx, msg in
+                            MessageBubbleView(message: msg, toolResults: results)
+                                .id(idx)
                         }
                         if !service.streamingAssistantText.isEmpty {
                             MessageBubbleView(message: LLMMessage(
@@ -21,6 +23,9 @@ struct ChatView: View {
                                 content: service.streamingAssistantText
                             ))
                             .id("streaming")
+                        }
+                        if showTypingIndicator {
+                            TypingIndicator().id("typing")
                         }
                         if let confirm = service.pendingConfirmation {
                             ToolConfirmView(
@@ -39,6 +44,9 @@ struct ChatView: View {
                 .onChange(of: service.streamingAssistantText) { _, _ in
                     proxy.scrollTo("streaming", anchor: .bottom)
                 }
+                .onChange(of: service.isBusy) { _, busy in
+                    if busy { withAnimation { proxy.scrollTo("typing", anchor: .bottom) } }
+                }
             }
             Divider()
             inputBar
@@ -48,30 +56,96 @@ struct ChatView: View {
         }
         .navigationTitle("Chatbot")
         .toolbar {
-            ToolbarItem {
-                Button("New Chat") { service.reset() }
+            ToolbarItemGroup {
+                Button {
+                    service.reset()
+                } label: {
+                    Label("New Chat", systemImage: "square.and.pencil")
+                }
+                .help("Start a fresh chat (clears the conversation)")
+                Button {
+                    showSettings = true
+                } label: {
+                    Label("Chat Settings", systemImage: "gearshape")
+                }
+                .help("Configure LLM provider, model, and tool permissions")
             }
+        }
+        .sheet(isPresented: $showSettings) {
+            NavigationStack {
+                LLMSettingsView(settings: settings)
+                    .navigationTitle("Chat Settings")
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { showSettings = false }
+                                .help("Close chat settings")
+                        }
+                    }
+            }
+            .frame(minWidth: 480, minHeight: 420)
         }
     }
 
     private var inputBar: some View {
-        HStack(alignment: .bottom) {
-            TextEditor(text: $draft)
+        HStack(spacing: 8) {
+            TextField("Message", text: $draft, axis: .vertical)
+                .textFieldStyle(.plain)
+                .lineLimit(1...5)
                 .font(.body)
-                .frame(minHeight: 40, maxHeight: 120)
-                .padding(6)
-                .background(.background.secondary, in: RoundedRectangle(cornerRadius: 8))
-            Button {
-                let toSend = draft
-                draft = ""
-                Task { await service.send(userText: toSend) }
-            } label: {
-                Image(systemName: "paperplane.fill")
+                .focused($inputFocused)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(
+                    Capsule().fill(.background.secondary)
+                )
+                .overlay(
+                    Capsule().stroke(.separator, lineWidth: 0.5)
+                )
+                .onSubmit(sendDraft)
+
+            Button(action: sendDraft) {
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 32, height: 32)
+                    .background(
+                        Circle().fill(canSend ? Color.accentColor : Color.secondary.opacity(0.4))
+                    )
             }
-            .buttonStyle(.borderedProminent)
-            .keyboardShortcut(.return, modifiers: [.command])
-            .disabled(service.isBusy || draft.trimmingCharacters(in: .whitespaces).isEmpty)
+            .buttonStyle(.plain)
+            .keyboardShortcut(.return, modifiers: [])
+            .disabled(!canSend)
         }
-        .padding(8)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+    }
+
+    private var canSend: Bool {
+        !service.isBusy && !draft.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    private func sendDraft() {
+        guard canSend else { return }
+        let toSend = draft
+        draft = ""
+        Task { await service.send(userText: toSend) }
+    }
+
+    private var showTypingIndicator: Bool {
+        service.isBusy
+            && service.streamingAssistantText.isEmpty
+            && service.pendingConfirmation == nil
+    }
+
+    private func visibleMessages() -> [LLMMessage] {
+        service.messages.filter { $0.role != .system && $0.role != .tool }
+    }
+
+    private func toolResultsMap() -> [String: LLMMessage] {
+        var map: [String: LLMMessage] = [:]
+        for msg in service.messages where msg.role == .tool {
+            if let id = msg.toolCallId { map[id] = msg }
+        }
+        return map
     }
 }

@@ -37,10 +37,9 @@ final class SwiftDataCategoryRepository: CategoryRepository {
     }
 
     func findByName(_ name: String) throws -> Category? {
-        let target = name
-        var d = FetchDescriptor<Category>(predicate: #Predicate { $0.name == target })
-        d.fetchLimit = 1
-        return try context.fetch(d).first
+        let target = name.trimmingCharacters(in: .whitespaces).lowercased()
+        let all = try context.fetch(FetchDescriptor<Category>())
+        return all.first { $0.name.trimmingCharacters(in: .whitespaces).lowercased() == target }
     }
 
     func all(includeArchived: Bool = false) throws -> [Category] {

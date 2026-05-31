@@ -37,10 +37,9 @@ final class SwiftDataPaymentMethodRepository: PaymentMethodRepository {
     }
 
     func findByName(_ name: String) throws -> PaymentMethod? {
-        let target = name
-        var d = FetchDescriptor<PaymentMethod>(predicate: #Predicate { $0.name == target })
-        d.fetchLimit = 1
-        return try context.fetch(d).first
+        let target = name.trimmingCharacters(in: .whitespaces).lowercased()
+        let all = try context.fetch(FetchDescriptor<PaymentMethod>())
+        return all.first { $0.name.trimmingCharacters(in: .whitespaces).lowercased() == target }
     }
 
     func all(includeArchived: Bool = false) throws -> [PaymentMethod] {
