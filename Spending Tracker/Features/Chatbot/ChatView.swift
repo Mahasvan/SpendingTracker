@@ -91,6 +91,7 @@ struct ChatView: View {
             }
             .frame(minWidth: 480, minHeight: 420)
         }
+        .onAppear { requestInputFocus = true }
     }
 
     private var inputBar: some View {
