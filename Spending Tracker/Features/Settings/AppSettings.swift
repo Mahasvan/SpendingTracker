@@ -36,6 +36,12 @@ final class AppSettings {
             self.deletePolicy = .confirm
         }
         self.persistChatHistory = defaults.object(forKey: K.persistChat) as? Bool ?? true
+        if let raw = defaults.string(forKey: K.reasoningLevel),
+           let r = ReasoningLevel(rawValue: raw) {
+            self.reasoningLevel = r
+        } else {
+            self.reasoningLevel = .medium
+        }
     }
 
     var provider: LLMProvider {
@@ -62,6 +68,9 @@ final class AppSettings {
     var persistChatHistory: Bool {
         didSet { defaults.set(persistChatHistory, forKey: K.persistChat) }
     }
+    var reasoningLevel: ReasoningLevel {
+        didSet { defaults.set(reasoningLevel.rawValue, forKey: K.reasoningLevel) }
+    }
 
     private enum K {
         static let provider = "llm.provider"
@@ -72,5 +81,6 @@ final class AppSettings {
         static let writePolicy = "tools.policy.write"
         static let deletePolicy = "tools.policy.delete"
         static let persistChat = "chat.persist"
+        static let reasoningLevel = "llm.reasoning.level"
     }
 }

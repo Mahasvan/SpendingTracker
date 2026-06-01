@@ -126,15 +126,32 @@ final class OllamaClient: LLMClient, @unchecked Sendable {
         var body: [String: Any] = [
             "model": config.model,
             "stream": stream,
-            "think": true,
             "messages": sanitized.map(encodeMessage),
             "options": ["temperature": config.temperature]
         ]
+        if let think = thinkParameter() {
+            body["think"] = think
+        }
         if !tools.isEmpty {
             body["tools"] = tools.map { encodeTool($0) }
         }
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         return req
+    }
+
+    /// Maps the configured reasoning level to Ollama's `think` field.
+    /// gpt-oss models only accept string levels and cannot disable thinking,
+    /// so `.off` maps to "low"; other models use a boolean toggle.
+    private func thinkParameter() -> Any? {
+        let isGptOss = config.model.lowercased().contains("gpt-oss")
+        if isGptOss {
+            switch config.reasoning {
+            case .off, .low: return "low"
+            case .medium: return "medium"
+            case .high: return "high"
+            }
+        }
+        return config.reasoning == .off ? nil : true
     }
 
     private func encodeMessage(_ m: LLMMessage) -> [String: Any] {
@@ -143,6 +160,9 @@ final class OllamaClient: LLMClient, @unchecked Sendable {
             "content": m.content
         ]
         if let name = m.name { dict["name"] = name }
+        if let images = m.images, !images.isEmpty {
+            dict["images"] = images
+        }
         if let calls = m.toolCalls, !calls.isEmpty {
             dict["tool_calls"] = calls.map { call in
                 [

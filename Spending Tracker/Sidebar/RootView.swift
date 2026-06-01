@@ -33,13 +33,14 @@ struct RootView: View {
         case .budgets:
             BudgetsView(viewModel: container.budgetsVM)
         case .chatbot:
-            ChatView(service: container.chatService, settings: container.settings)
+            ChatView(service: container.chatService, settings: container.settings, store: container.capabilityStore)
         case .settings:
             SettingsView(
                 categoryRepo: container.categoryRepo,
                 pmRepo: container.paymentMethodRepo,
                 settings: container.settings,
-                importExportService: container.importExportService
+                importExportService: container.importExportService,
+                capabilityStore: container.capabilityStore
             )
         }
     }

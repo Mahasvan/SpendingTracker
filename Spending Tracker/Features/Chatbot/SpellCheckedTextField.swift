@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
 
 struct SpellCheckedTextField: NSViewRepresentable {
     @Binding var text: String
@@ -7,6 +8,7 @@ struct SpellCheckedTextField: NSViewRepresentable {
     var placeholder: String = ""
     var maxLines: Int = 5
     var onSubmit: () -> Void = {}
+    var onImageData: (Data) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -14,6 +16,7 @@ struct SpellCheckedTextField: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSTextField {
         let field = WrappingTextField()
+        field.onImageData = onImageData
         field.delegate = context.coordinator
         field.placeholderString = placeholder
         field.isBordered = false
@@ -35,6 +38,7 @@ struct SpellCheckedTextField: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSTextField, context: Context) {
+        (nsView as? WrappingTextField)?.onImageData = onImageData
         if nsView.stringValue != text {
             nsView.stringValue = text
         }
@@ -84,9 +88,17 @@ struct SpellCheckedTextField: NSViewRepresentable {
 }
 
 private final class WrappingTextField: NSTextField {
+    var onImageData: ((Data) -> Void)?
+
     override func becomeFirstResponder() -> Bool {
         let result = super.becomeFirstResponder()
+        // Reject image/file drops so they fall through to the chat window's drop
+        // handler instead of being inserted as a file path. Keep plain-text drops.
+        unregisterDraggedTypes()
+        registerForDraggedTypes([.string])
         if let editor = currentEditor() as? NSTextView {
+            editor.unregisterDraggedTypes()
+            editor.registerForDraggedTypes([.string])
             editor.isContinuousSpellCheckingEnabled = true
             editor.isAutomaticSpellingCorrectionEnabled = true
             editor.isAutomaticTextReplacementEnabled = true
@@ -97,5 +109,49 @@ private final class WrappingTextField: NSTextField {
             editor.smartInsertDeleteEnabled = true
         }
         return result
+    }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if event.type == .keyDown,
+           event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
+           event.charactersIgnoringModifiers?.lowercased() == "v" {
+            if pasteImagesIfAvailable() { return true }
+        }
+        return super.performKeyEquivalent(with: event)
+    }
+
+    private func pasteImagesIfAvailable() -> Bool {
+        guard let onImageData else { return false }
+        let pb = NSPasteboard.general
+        var found = false
+
+        let opts: [NSPasteboard.ReadingOptionKey: Any] = [
+            .urlReadingContentsConformToTypes: [UTType.image.identifier]
+        ]
+        if let urls = pb.readObjects(forClasses: [NSURL.self], options: opts) as? [URL], !urls.isEmpty {
+            for url in urls {
+                if let data = try? Data(contentsOf: url) {
+                    onImageData(data)
+                    found = true
+                }
+            }
+            if found { return true }
+        }
+
+        if let images = pb.readObjects(forClasses: [NSImage.self], options: nil) as? [NSImage], !images.isEmpty {
+            for img in images {
+                if let data = Self.pngData(from: img) {
+                    onImageData(data)
+                    found = true
+                }
+            }
+        }
+        return found
+    }
+
+    private static func pngData(from image: NSImage) -> Data? {
+        guard let tiff = image.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff) else { return nil }
+        return rep.representation(using: .png, properties: [:])
     }
 }

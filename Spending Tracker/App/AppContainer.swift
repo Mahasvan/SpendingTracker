@@ -5,6 +5,7 @@ import SwiftData
 final class AppContainer {
     let modelContainer: ModelContainer
     let settings: AppSettings
+    let capabilityStore: ModelCapabilityStore
 
     let transactionRepo: any TransactionRepository
     let categoryRepo: any CategoryRepository
@@ -26,6 +27,7 @@ final class AppContainer {
         self.modelContainer = modelContainer
         let context = modelContainer.mainContext
         self.settings = AppSettings()
+        self.capabilityStore = ModelCapabilityStore(settings: settings)
 
         let txRepo = SwiftDataTransactionRepository(context: context)
         let catRepo = SwiftDataCategoryRepository(context: context)
@@ -71,7 +73,8 @@ final class AppContainer {
         self.chatService = ChatService(
             registry: toolRegistry,
             toolContext: toolContext,
-            settings: settings
+            settings: settings,
+            capabilityStore: capabilityStore
         )
     }
 }

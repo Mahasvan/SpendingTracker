@@ -12,6 +12,7 @@ struct LLMMessage: Codable, Sendable, Equatable {
     var name: String?
     var toolCallId: String?
     var toolCalls: [LLMToolCall]?
+    var images: [String]?
 }
 
 struct LLMToolSchema: Codable, Sendable, Equatable {
@@ -25,6 +26,7 @@ struct LLMConfig: Sendable, Equatable {
     var baseURL: URL
     var model: String
     var temperature: Double
+    var reasoning: ReasoningLevel = .off
 }
 
 struct LLMResponse: Sendable {

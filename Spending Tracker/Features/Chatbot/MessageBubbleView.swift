@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct MessageBubbleView: View {
     let message: LLMMessage
@@ -9,6 +10,9 @@ struct MessageBubbleView: View {
             avatar
             VStack(alignment: .leading, spacing: 4) {
                 roleLabel
+                if let images = message.images, !images.isEmpty {
+                    imagesView(images)
+                }
                 contentView
                 if let calls = message.toolCalls, !calls.isEmpty {
                     ToolCallsDisclosure(calls: calls, results: toolResults)
@@ -32,6 +36,22 @@ struct MessageBubbleView: View {
         Text(roleTitle)
             .font(.caption.bold())
             .foregroundStyle(.secondary)
+    }
+
+    @ViewBuilder
+    private func imagesView(_ images: [String]) -> some View {
+        let nsImages = images.compactMap { Data(base64Encoded: $0).flatMap { NSImage(data: $0) } }
+        if !nsImages.isEmpty {
+            HStack(spacing: 6) {
+                ForEach(Array(nsImages.enumerated()), id: \.offset) { _, img in
+                    Image(nsImage: img)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 120, height: 120)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+            }
+        }
     }
 
     @ViewBuilder

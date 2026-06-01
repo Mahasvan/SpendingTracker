@@ -28,10 +28,10 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		A1B2C3D4E5F60002B1B1B1B1 /* Version.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Version.xcconfig; sourceTree = "<group>"; };
 		319AE5C92FCC6EDB00924E18 /* Spending Tracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Spending Tracker.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		319AE5D82FCC6EDC00924E18 /* Spending TrackerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Spending TrackerTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		319AE5E22FCC6EDC00924E18 /* Spending TrackerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Spending TrackerUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1B2C3D4E5F60002B1B1B1B1 /* Version.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Version.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -89,14 +89,6 @@
 			);
 			sourceTree = "<group>";
 		};
-		A1B2C3D4E5F60002B0B0B0B0 /* Config */ = {
-			isa = PBXGroup;
-			children = (
-				A1B2C3D4E5F60002B1B1B1B1 /* Version.xcconfig */,
-			);
-			path = Config;
-			sourceTree = "<group>";
-		};
 		319AE5CA2FCC6EDB00924E18 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -105,6 +97,14 @@
 				319AE5E22FCC6EDC00924E18 /* Spending TrackerUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		A1B2C3D4E5F60002B0B0B0B0 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F60002B1B1B1B1 /* Version.xcconfig */,
+			);
+			path = Config;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */

@@ -15,6 +15,7 @@ final class ChatService {
     private let registry: ToolRegistry
     private let toolContext: ToolContext
     private let settings: AppSettings
+    private let capabilityStore: ModelCapabilityStore?
     private let maxToolIterations = 8
 
     private let systemPrompt = """
@@ -30,12 +31,14 @@ final class ChatService {
         clientFactory: @escaping @MainActor (LLMConfig) -> LLMClient = { LLMClientFactory.make($0) },
         registry: ToolRegistry,
         toolContext: ToolContext,
-        settings: AppSettings
+        settings: AppSettings,
+        capabilityStore: ModelCapabilityStore? = nil
     ) {
         self.clientFactory = clientFactory
         self.registry = registry
         self.toolContext = toolContext
         self.settings = settings
+        self.capabilityStore = capabilityStore
         self.messages = [LLMMessage(role: .system, content: systemPrompt)]
     }
 
@@ -46,11 +49,15 @@ final class ChatService {
         pendingConfirmation = nil
     }
 
-    func send(userText: String) async {
+    func send(userText: String, images: [String] = []) async {
         guard !isBusy else { return }
         let trimmed = userText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        messages.append(LLMMessage(role: .user, content: trimmed))
+        guard !trimmed.isEmpty || !images.isEmpty else { return }
+        messages.append(LLMMessage(
+            role: .user,
+            content: trimmed,
+            images: images.isEmpty ? nil : images
+        ))
         await runLoop()
     }
 
@@ -208,11 +215,13 @@ final class ChatService {
 
     private func currentConfig() -> LLMConfig {
         let url = URL(string: settings.ollamaBaseURL) ?? URL(string: "http://localhost:11434")!
+        let reasoning = (capabilityStore?.hasThinking ?? false) ? settings.reasoningLevel : .off
         return LLMConfig(
             provider: settings.provider,
             baseURL: url,
             model: settings.ollamaModel,
-            temperature: settings.temperature
+            temperature: settings.temperature,
+            reasoning: reasoning
         )
     }
 
