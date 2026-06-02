@@ -80,7 +80,7 @@ struct ChatServiceTests {
         return (service, toolCtx, mock)
     }
 
-    @Test
+    @Test @MainActor
     func plainTextResponse() async throws {
         let (service, _, _) = try makeService(scripted: [("Hello, how can I help?", [])])
         await service.send(userText: "hi")
@@ -88,7 +88,7 @@ struct ChatServiceTests {
         #expect(service.messages.last?.content == "Hello, how can I help?")
     }
 
-    @Test
+    @Test @MainActor
     func toolCallLoopExecutesAndContinues() async throws {
         let call = LLMToolCall(
             id: "call_1",
@@ -105,7 +105,7 @@ struct ChatServiceTests {
         #expect(service.messages.last?.content == "You have 0 transactions.")
     }
 
-    @Test
+    @Test @MainActor
     func writePolicyConfirmHaltsLoop() async throws {
         let call = LLMToolCall(
             id: "call_x",

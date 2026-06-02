@@ -31,6 +31,7 @@ final class ToolRegistry {
         r.register(CreatePaymentMethodTool())
         r.register(GetSummaryTool())
         r.register(GetBudgetStatusTool())
+        r.register(GetCurrentDateTimeTool())
         return r
     }
 }

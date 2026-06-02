@@ -81,17 +81,29 @@ enum ToolArgs {
         return UUID(uuidString: s)
     }
     static func date(_ args: JSONValue, _ key: String) -> Date? {
-        guard let s = args[key]?.stringValue else { return nil }
+        guard let s = args[key]?.stringValue, !s.isEmpty else { return nil }
         let isoFull = ISO8601DateFormatter()
         isoFull.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         if let d = isoFull.date(from: s) { return d }
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime]
         if let d = iso.date(from: s) { return d }
+        // Date-times without an explicit timezone, interpreted in the current timezone.
+        let localFormats = [
+            "yyyy-MM-dd'T'HH:mm:ss",
+            "yyyy-MM-dd'T'HH:mm",
+            "yyyy-MM-dd HH:mm:ss",
+            "yyyy-MM-dd HH:mm",
+            "yyyy-MM-dd"
+        ]
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyy-MM-dd"
-        return f.date(from: s)
+        f.timeZone = .current
+        for fmt in localFormats {
+            f.dateFormat = fmt
+            if let d = f.date(from: s) { return d }
+        }
+        return nil
     }
     static func int(_ args: JSONValue, _ key: String) -> Int? {
         if let n = args[key]?.numberValue { return Int(n) }

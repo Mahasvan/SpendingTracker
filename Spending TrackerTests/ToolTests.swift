@@ -4,6 +4,7 @@ import SwiftData
 @testable import Spending_Tracker
 
 @MainActor
+@Suite(.serialized)
 struct ToolTests {
     private func makeContext() throws -> ToolContext {
         let container = try TestSupport.makeContainer()
@@ -17,7 +18,7 @@ struct ToolTests {
         )
     }
 
-    @Test
+    @Test @MainActor
     func addTransactionViaTool() async throws {
         let ctx = try makeContext()
         let tool = AddTransactionTool()
@@ -35,7 +36,7 @@ struct ToolTests {
         #expect(all.first?.note == "test")
     }
 
-    @Test
+    @Test @MainActor
     func addTransactionRejectsNegative() async throws {
         let ctx = try makeContext()
         let tool = AddTransactionTool()
@@ -48,7 +49,7 @@ struct ToolTests {
         }
     }
 
-    @Test
+    @Test @MainActor
     func listTransactionsFilters() async throws {
         let ctx = try makeContext()
         _ = try await AddTransactionTool().run(arguments: .object([
@@ -65,7 +66,7 @@ struct ToolTests {
         #expect(result["count"]?.numberValue == 1)
     }
 
-    @Test
+    @Test @MainActor
     func summaryTotals() async throws {
         let ctx = try makeContext()
         _ = try await AddTransactionTool().run(arguments: .object([
@@ -83,7 +84,7 @@ struct ToolTests {
         #expect(summary["net"]?.numberValue == 400)
     }
 
-    @Test
+    @Test @MainActor
     func createCategoryDuplicateFails() async throws {
         let ctx = try makeContext()
         await #expect(throws: ToolError.self) {
@@ -94,7 +95,7 @@ struct ToolTests {
         }
     }
 
-    @Test
+    @Test @MainActor
     func deleteTransaction() async throws {
         let ctx = try makeContext()
         let added = try await AddTransactionTool().run(arguments: .object([

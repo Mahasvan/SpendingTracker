@@ -9,7 +9,7 @@ struct AddTransactionTool: Tool {
             properties: [
                 "amount": JSONSchemaBuilder.number("Amount in INR (positive)"),
                 "type": JSONSchemaBuilder.string("Transaction type", enumValues: ["expense", "income"]),
-                "date": JSONSchemaBuilder.string("ISO-8601 date (defaults to now if omitted)"),
+                "date": JSONSchemaBuilder.string("ISO-8601 date or date-time, e.g. 2026-06-02 or 2026-06-02T15:30 (defaults to now if omitted). Include the time whenever the user specifies or implies one."),
                 "note": JSONSchemaBuilder.string("Optional note"),
                 "category": JSONSchemaBuilder.string("Category name (must exist)"),
                 "payment_method": JSONSchemaBuilder.string("Payment method name (must exist)")
@@ -62,7 +62,7 @@ struct UpdateTransactionTool: Tool {
                 "id": JSONSchemaBuilder.string("Transaction UUID"),
                 "amount": JSONSchemaBuilder.number("New amount"),
                 "type": JSONSchemaBuilder.string("New type", enumValues: ["expense", "income"]),
-                "date": JSONSchemaBuilder.string("New ISO-8601 date"),
+                "date": JSONSchemaBuilder.string("New ISO-8601 date or date-time, e.g. 2026-06-02T15:30. Include the time when provided."),
                 "note": JSONSchemaBuilder.string("New note"),
                 "category": JSONSchemaBuilder.string("New category name"),
                 "payment_method": JSONSchemaBuilder.string("New payment method name")
