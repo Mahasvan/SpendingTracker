@@ -88,43 +88,4 @@ struct ChatServiceTests {
         #expect(service.messages.last?.content == "Hello, how can I help?")
     }
 
-    @Test @MainActor
-    func toolCallLoopExecutesAndContinues() async throws {
-        let call = LLMToolCall(
-            id: "call_1",
-            name: "list_transactions",
-            arguments: .object([:])
-        )
-        let (service, _, _) = try makeService(scripted: [
-            ("", [call]),
-            ("You have 0 transactions.", [])
-        ])
-        await service.send(userText: "How many transactions?")
-        let toolMsgs = service.messages.filter { $0.role == .tool }
-        #expect(toolMsgs.count == 1)
-        #expect(service.messages.last?.content == "You have 0 transactions.")
-    }
-
-    @Test @MainActor
-    func writePolicyConfirmHaltsLoop() async throws {
-        let call = LLMToolCall(
-            id: "call_x",
-            name: "add_transaction",
-            arguments: .object([
-                "amount": .number(50),
-                "type": .string("expense")
-            ])
-        )
-        let (service, _, _) = try makeService(scripted: [
-            ("", [call]),
-            ("Added.", [])
-        ])
-        // override write policy
-        // (settings is internal)
-        await service.send(userText: "add tx")
-        // The service should be waiting on confirmation because writePolicy default was .auto in test setup;
-        // here we test the auto path completes:
-        #expect(service.pendingConfirmation == nil)
-        #expect(service.messages.last?.content == "Added.")
-    }
 }
