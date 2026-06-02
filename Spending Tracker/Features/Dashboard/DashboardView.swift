@@ -6,14 +6,9 @@ struct DashboardView: View {
     @State private var editing: Transaction?
     let txViewModel: TransactionsViewModel
 
-    private let columns = [
-        GridItem(.flexible(minimum: 280), spacing: 16),
-        GridItem(.flexible(minimum: 280), spacing: 16)
-    ]
-
     var body: some View {
         ScrollView {
-            LazyVGrid(columns: columns, spacing: 16) {
+            MasonryHStack(columns: 2, spacing: 16) {
                 SummaryCardWidget(summary: viewModel.summary)
                 SpendingTrendWidget(data: viewModel.dailySpend)
                 TopCategoriesWidget(breakdown: viewModel.topCategories)
