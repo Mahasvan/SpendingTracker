@@ -17,6 +17,9 @@ final class ChatService {
     private let settings: AppSettings
     private let capabilityStore: ModelCapabilityStore?
     private let maxToolIterations = 8
+    /// Cap on how many trailing messages (besides the system prompt) we send to the
+    /// model, keeping the context window small enough for smaller local models.
+    private let maxHistoryMessages = 40
 
     private let systemPrompt = """
     You are a spending-tracker assistant. The user manages INR transactions. Use tools only—never guess. Format money as ₹X.XX. Be concise and keep reasoning brief.
@@ -91,6 +94,21 @@ final class ChatService {
         await stepStream()
     }
 
+    /// Builds the message list sent to the model: always the system prompt plus a
+    /// trailing window of recent messages. Any orphaned tool results at the start of
+    /// the window (whose originating assistant call fell outside it) are dropped so the
+    /// provider never sees a tool message without its preceding tool call.
+    private func historyForRequest() -> [LLMMessage] {
+        guard messages.count > maxHistoryMessages + 1, let system = messages.first else {
+            return messages
+        }
+        var tail = Array(messages.suffix(maxHistoryMessages))
+        while let first = tail.first, first.role == .tool {
+            tail.removeFirst()
+        }
+        return [system] + tail
+    }
+
     private func stepStream() async {
         streamingAssistantText = ""
         let cfg = currentConfig()
@@ -101,7 +119,7 @@ final class ChatService {
         var aggregatedText = ""
 
         do {
-            for try await chunk in client.stream(messages: messages, tools: schemas) {
+            for try await chunk in client.stream(messages: historyForRequest(), tools: schemas) {
                 switch chunk {
                 case .textDelta(let s):
                     aggregatedText += s
