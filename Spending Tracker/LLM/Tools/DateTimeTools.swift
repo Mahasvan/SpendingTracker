@@ -13,22 +13,36 @@ struct GetCurrentDateTimeTool: Tool {
         JSONSchemaBuilder.object(properties: [:])
     }
 
+    private static let isoLocal: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
+    private static let isoUTC: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.timeZone = TimeZone(identifier: "UTC")
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
+    private static let componentFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
+
     func run(arguments args: JSONValue, context ctx: ToolContext) async throws -> JSONValue {
         let now = Date.now
         let tz = TimeZone.current
         let offsetSeconds = tz.secondsFromGMT(for: now)
 
-        let isoLocal = ISO8601DateFormatter()
+        let isoLocal = Self.isoLocal
         isoLocal.timeZone = tz
-        isoLocal.formatOptions = [.withInternetDateTime]
-
-        let isoUTC = ISO8601DateFormatter()
-        isoUTC.timeZone = TimeZone(identifier: "UTC")
-        isoUTC.formatOptions = [.withInternetDateTime]
+        let isoUTC = Self.isoUTC
 
         func fmt(_ format: String) -> String {
-            let f = DateFormatter()
-            f.locale = Locale(identifier: "en_US_POSIX")
+            let f = Self.componentFormatter
             f.timeZone = tz
             f.dateFormat = format
             return f.string(from: now)
