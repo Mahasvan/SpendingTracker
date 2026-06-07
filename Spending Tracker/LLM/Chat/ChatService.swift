@@ -21,7 +21,9 @@ final class ChatService {
     /// model, keeping the context window small enough for smaller local models.
     private let maxHistoryMessages = 40
 
-    private let systemPrompt = """
+    /// The static portion of the system prompt. The current date is appended at request
+    /// time by `makeSystemPrompt()` so it never goes stale while the app stays open.
+    private let systemPromptBody = """
     You are a spending-tracker assistant. The user manages INR transactions. Use tools only—never guess. Format money as ₹X.XX. Be concise and keep reasoning brief.
 
     Transaction rules:
@@ -32,9 +34,11 @@ final class ChatService {
     Dates: call get_current_datetime for relative times (today, yesterday, 3pm). Pass ISO-8601 dates to tools. Include time only when specified. Omit date to default to now.
 
     Categories: call get_categories before adding/updating, pick the best existing one, and pass it. For income, default category to "Salary" and payment method to "Bank Transfer". Category and payment_method are optional; skip if nothing fits.
-
-    Today's date: \(ISO8601DateFormatter.shared.string(from: .now)).
     """
+
+    private func makeSystemPrompt() -> String {
+        "\(systemPromptBody)\n\nToday's date: \(ISO8601DateFormatter.shared.string(from: .now))."
+    }
 
     init(
         clientFactory: @escaping @MainActor (LLMConfig) -> LLMClient = { LLMClientFactory.make($0) },
@@ -48,11 +52,11 @@ final class ChatService {
         self.toolContext = toolContext
         self.settings = settings
         self.capabilityStore = capabilityStore
-        self.messages = [LLMMessage(role: .system, content: systemPrompt)]
+        self.messages = [LLMMessage(role: .system, content: makeSystemPrompt())]
     }
 
     func reset() {
-        messages = [LLMMessage(role: .system, content: systemPrompt)]
+        messages = [LLMMessage(role: .system, content: makeSystemPrompt())]
         streamingAssistantText = ""
         errorMessage = nil
         pendingConfirmation = nil
@@ -99,10 +103,13 @@ final class ChatService {
     /// the window (whose originating assistant call fell outside it) are dropped so the
     /// provider never sees a tool message without its preceding tool call.
     private func historyForRequest() -> [LLMMessage] {
-        guard messages.count > maxHistoryMessages + 1, let system = messages.first else {
-            return messages
+        // Always send a freshly-dated system prompt so it never goes stale.
+        let system = LLMMessage(role: .system, content: makeSystemPrompt())
+        let rest = messages.dropFirst()
+        guard rest.count > maxHistoryMessages else {
+            return [system] + rest
         }
-        var tail = Array(messages.suffix(maxHistoryMessages))
+        var tail = Array(rest.suffix(maxHistoryMessages))
         while let first = tail.first, first.role == .tool {
             tail.removeFirst()
         }
