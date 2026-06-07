@@ -115,8 +115,9 @@ final class VaultCoordinator {
         let tempImportExport = ImportExportService(context: tempContext)
         let jsonData = try tempImportExport.exportAll(includeChatHistory: true)
 
-        // If there's no data, nothing to migrate
-        if jsonData.isEmpty {
+        // If there's no data, mark migration complete and return
+        // Check if JSON is empty or just contains empty arrays
+        if jsonData.isEmpty || jsonData.count < 50 { // Small threshold for empty JSON
             UserDefaults.standard.set(true, forKey: Self.migrationCompletedKey)
             return
         }
