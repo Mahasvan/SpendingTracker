@@ -29,4 +29,45 @@ struct ToolTests {
             _ = try await tool.run(arguments: args, context: ctx)
         }
     }
+
+    @Test @MainActor
+    func getCategoriesReturnsOnlyName() async throws {
+        let ctx = try makeContext()
+        let result = try await GetCategoriesTool().run(arguments: .object([:]), context: ctx)
+        let items = try #require(result.arrayValue)
+        #expect(!items.isEmpty)
+        for item in items {
+            let obj = try #require(item.objectValue)
+            #expect(Array(obj.keys) == ["name"])
+        }
+    }
+
+    @Test @MainActor
+    func getPaymentMethodsReturnsOnlyName() async throws {
+        let ctx = try makeContext()
+        let result = try await GetPaymentMethodsTool().run(arguments: .object([:]), context: ctx)
+        let items = try #require(result.arrayValue)
+        #expect(!items.isEmpty)
+        for item in items {
+            let obj = try #require(item.objectValue)
+            #expect(Array(obj.keys) == ["name"])
+        }
+    }
+
+    @Test @MainActor
+    func addTransactionResultOmitsIdFields() async throws {
+        let ctx = try makeContext()
+        let args: JSONValue = .object([
+            "amount": .number(100),
+            "type": .string("expense"),
+            "category": .string("Food"),
+            "payment_method": .string("Cash")
+        ])
+        let result = try await AddTransactionTool().run(arguments: args, context: ctx)
+        let obj = try #require(result.objectValue)
+        #expect(obj["category"]?.stringValue == "Food")
+        #expect(obj["payment_method"]?.stringValue == "Cash")
+        #expect(obj["category_id"] == nil)
+        #expect(obj["payment_method_id"] == nil)
+    }
 }
