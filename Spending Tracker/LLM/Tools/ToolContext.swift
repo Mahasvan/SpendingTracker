@@ -121,9 +121,7 @@ enum TxEncoder {
             "date": .string(ISO8601DateFormatter.shared.string(from: tx.date)),
             "note": .string(tx.note),
             "category": tx.category.map { .string($0.name) } ?? .null,
-            "category_id": tx.category.map { .string($0.id.uuidString) } ?? .null,
-            "payment_method": tx.paymentMethod.map { .string($0.name) } ?? .null,
-            "payment_method_id": tx.paymentMethod.map { .string($0.id.uuidString) } ?? .null
+            "payment_method": tx.paymentMethod.map { .string($0.name) } ?? .null
         ])
     }
 }
