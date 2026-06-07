@@ -37,6 +37,7 @@ final class AppSettings {
         }
         self.persistChatHistory = defaults.object(forKey: K.persistChat) as? Bool ?? true
         self.maxHistoryMessages = defaults.object(forKey: K.maxHistoryMessages) as? Int ?? 40
+        self.requireBiometricUnlock = defaults.object(forKey: K.requireBiometricUnlock) as? Bool ?? false
         if let raw = defaults.string(forKey: K.reasoningLevel),
            let r = ReasoningLevel(rawValue: raw) {
             self.reasoningLevel = r
@@ -73,6 +74,10 @@ final class AppSettings {
     var maxHistoryMessages: Int {
         didSet { defaults.set(maxHistoryMessages, forKey: K.maxHistoryMessages) }
     }
+    /// When enabled, the app requires Touch ID (or the system password) on launch.
+    var requireBiometricUnlock: Bool {
+        didSet { defaults.set(requireBiometricUnlock, forKey: K.requireBiometricUnlock) }
+    }
     var reasoningLevel: ReasoningLevel {
         didSet { defaults.set(reasoningLevel.rawValue, forKey: K.reasoningLevel) }
     }
@@ -87,6 +92,7 @@ final class AppSettings {
         static let deletePolicy = "tools.policy.delete"
         static let persistChat = "chat.persist"
         static let maxHistoryMessages = "chat.maxHistoryMessages"
+        static let requireBiometricUnlock = "security.requireBiometricUnlock"
         static let reasoningLevel = "llm.reasoning.level"
     }
 }
