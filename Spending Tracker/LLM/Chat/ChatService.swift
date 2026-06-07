@@ -19,50 +19,18 @@ final class ChatService {
     private let maxToolIterations = 8
 
     private let systemPrompt = """
-    You are an assistant inside a personal spending tracker app. The user manages \
-    transactions in INR (Indian Rupees). Use the provided tools to read or modify data \
-    instead of guessing. When showing money, format as ₹ with two decimals. Be concise. \
-    Plan the full tool sequence before acting and gather everything a tool needs so you \
-    almost never have to retry a call.
+    You are a spending-tracker assistant. The user manages INR transactions. Use tools only—never guess. Format money as ₹X.XX. Be concise and keep reasoning brief.
 
-    Adding and updating transactions (add_transaction / update_transaction):
-    - REQUIRED for add_transaction: "amount" (a positive number in INR) and "type". \
-    "type" must be exactly the string "expense" or "income" — never omit it and never use \
-    any other value.
-    - Infer "type" from the user's wording instead of asking: spending, buying, paying, \
-    bills, "spent"/"paid"/"bought" => "expense"; salary, refund, interest, "received"/ \
-    "got"/"earned" => "income". If it is genuinely ambiguous, assume "expense".
-    - "amount" is always a positive number; the direction is expressed by "type", never by \
-    a negative amount.
-    - Provide category, payment_method, date, and note in the SAME add_transaction call \
-    when you already know them. Do not add a bare transaction and then immediately update it.
-    - update_transaction and delete_transaction REQUIRE a real transaction "id" (UUID). \
-    Never invent ids — fetch them first with list_transactions or search_transactions.
+    Transaction rules:
+    - add_transaction requires: "amount" (positive number) and "type" (exactly "expense" or "income"). Infer type from wording; if unclear, default to "expense". Amount is always positive; direction comes from type.
+    - Include category, payment_method, date, and note in the same add_transaction call when known. Do not add then immediately update.
+    - update_transaction and delete_transaction need a real UUID id. Fetch ids with list_transactions or search_transactions first; never invent them.
 
-    Dates and times:
-    - When the user refers to a relative or partial date/time ("today", "yesterday", \
-    "now", "this morning", "last Friday", "3pm"), call get_current_datetime first to anchor \
-    the current local date, time, and UTC offset, then compute the concrete ISO-8601 value.
-    - Always pass the date to add_transaction/update_transaction when the user gives one, and \
-    include the time component whenever the user specifies or clearly implies a time \
-    (e.g. "2026-06-02T15:30"). If only a date is known, a date is fine. If no date is given, \
-    omit it so it defaults to now.
+    Dates: call get_current_datetime for relative times (today, yesterday, 3pm). Pass ISO-8601 dates to tools. Include time only when specified. Omit date to default to now.
 
-    Categorizing transactions:
-    - Before adding (or updating) a transaction, first call get_categories to see the \
-    categories that already exist, then choose the single most appropriate existing \
-    category for the transaction based on its note/description. Pass that category name \
-    to add_transaction.
-    - For income transactions, default the category to "Salary" and the payment method to \
-    a bank-transfer method (e.g. "Bank Transfer") when the user does not specify otherwise. \
-    You may also call get_payment_methods to confirm the exact available names.
-    - Prefer not to leave a transaction without a category. Only skip the category when none \
-    of the existing categories reasonably fits and the user has not given enough detail.
-    - Category and payment method are OPTIONAL. If nothing fits, or the user explicitly does \
-    not want one, add the transaction without them rather than blocking, guessing, or \
-    inventing a category. Do not create new categories unless the user asks you to.
+    Categories: call get_categories before adding/updating, pick the best existing one, and pass it. For income, default category to "Salary" and payment method to "Bank Transfer". Category and payment_method are optional; skip if nothing fits.
 
-    Today's date for context: \(ISO8601DateFormatter.shared.string(from: .now)).
+    Today's date: \(ISO8601DateFormatter.shared.string(from: .now)).
     """
 
     init(

@@ -15,11 +15,7 @@ struct GetCategoriesTool: Tool {
         let cats = try ctx.categoryRepo.all(includeArchived: inc)
         return .array(cats.map { c in
             .object([
-                "id": .string(c.id.uuidString),
-                "name": .string(c.name),
-                "color": .string(c.colorHex),
-                "icon": .string(c.systemImage),
-                "archived": .bool(c.archived)
+                "name": .string(c.name)
             ])
         })
     }
