@@ -14,20 +14,29 @@ protocol BudgetRepository: AnyObject {
 @MainActor
 final class SwiftDataBudgetRepository: BudgetRepository {
     private let context: ModelContext
+    private let onSave: (() -> Void)?
 
-    init(context: ModelContext) { self.context = context }
+    init(context: ModelContext, onSave: (() -> Void)? = nil) {
+        self.context = context
+        self.onSave = onSave
+    }
+
+    private func save() throws {
+        try context.save()
+        onSave?()
+    }
 
     func add(_ b: Budget) throws {
         context.insert(b)
-        try context.save()
+        try save()
     }
 
-    func update(_ b: Budget) throws { try context.save() }
+    func update(_ b: Budget) throws { try save() }
 
     func delete(id: UUID) throws {
         guard let b = try find(id: id) else { throw RepositoryError.notFound("Budget \(id)") }
         context.delete(b)
-        try context.save()
+        try save()
     }
 
     func find(id: UUID) throws -> Budget? {

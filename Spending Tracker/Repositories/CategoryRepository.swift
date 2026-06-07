@@ -14,20 +14,29 @@ protocol CategoryRepository: AnyObject {
 @MainActor
 final class SwiftDataCategoryRepository: CategoryRepository {
     private let context: ModelContext
+    private let onSave: (() -> Void)?
 
-    init(context: ModelContext) { self.context = context }
+    init(context: ModelContext, onSave: (() -> Void)? = nil) {
+        self.context = context
+        self.onSave = onSave
+    }
+
+    private func save() throws {
+        try context.save()
+        onSave?()
+    }
 
     func add(_ c: Category) throws {
         context.insert(c)
-        try context.save()
+        try save()
     }
 
-    func update(_ c: Category) throws { try context.save() }
+    func update(_ c: Category) throws { try save() }
 
     func delete(id: UUID) throws {
         guard let c = try find(id: id) else { throw RepositoryError.notFound("Category \(id)") }
         context.delete(c)
-        try context.save()
+        try save()
     }
 
     func find(id: UUID) throws -> Category? {

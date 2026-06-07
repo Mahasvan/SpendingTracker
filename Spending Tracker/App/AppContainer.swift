@@ -33,11 +33,21 @@ final class AppContainer {
         self.settings = AppSettings()
         self.capabilityStore = ModelCapabilityStore(settings: settings)
 
-        let txRepo = SwiftDataTransactionRepository(context: context)
-        let catRepo = SwiftDataCategoryRepository(context: context)
-        let pmRepo = SwiftDataPaymentMethodRepository(context: context)
-        let bRepo = SwiftDataBudgetRepository(context: context)
-        let cRepo = SwiftDataChatRepository(context: context)
+        let txRepo = SwiftDataTransactionRepository(context: context) { [weak self] in
+            self?.scheduleSnapshot()
+        }
+        let catRepo = SwiftDataCategoryRepository(context: context) { [weak self] in
+            self?.scheduleSnapshot()
+        }
+        let pmRepo = SwiftDataPaymentMethodRepository(context: context) { [weak self] in
+            self?.scheduleSnapshot()
+        }
+        let bRepo = SwiftDataBudgetRepository(context: context) { [weak self] in
+            self?.scheduleSnapshot()
+        }
+        let cRepo = SwiftDataChatRepository(context: context) { [weak self] in
+            self?.scheduleSnapshot()
+        }
 
         self.transactionRepo = txRepo
         self.categoryRepo = catRepo

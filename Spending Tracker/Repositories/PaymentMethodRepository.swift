@@ -14,20 +14,29 @@ protocol PaymentMethodRepository: AnyObject {
 @MainActor
 final class SwiftDataPaymentMethodRepository: PaymentMethodRepository {
     private let context: ModelContext
+    private let onSave: (() -> Void)?
 
-    init(context: ModelContext) { self.context = context }
+    init(context: ModelContext, onSave: (() -> Void)? = nil) {
+        self.context = context
+        self.onSave = onSave
+    }
+
+    private func save() throws {
+        try context.save()
+        onSave?()
+    }
 
     func add(_ pm: PaymentMethod) throws {
         context.insert(pm)
-        try context.save()
+        try save()
     }
 
-    func update(_ pm: PaymentMethod) throws { try context.save() }
+    func update(_ pm: PaymentMethod) throws { try save() }
 
     func delete(id: UUID) throws {
         guard let pm = try find(id: id) else { throw RepositoryError.notFound("PaymentMethod \(id)") }
         context.delete(pm)
-        try context.save()
+        try save()
     }
 
     func find(id: UUID) throws -> PaymentMethod? {

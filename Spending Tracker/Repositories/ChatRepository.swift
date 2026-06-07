@@ -15,13 +15,22 @@ protocol ChatRepository: AnyObject {
 @MainActor
 final class SwiftDataChatRepository: ChatRepository {
     private let context: ModelContext
+    private let onSave: (() -> Void)?
 
-    init(context: ModelContext) { self.context = context }
+    init(context: ModelContext, onSave: (() -> Void)? = nil) {
+        self.context = context
+        self.onSave = onSave
+    }
+
+    private func save() throws {
+        try context.save()
+        onSave?()
+    }
 
     func createSession(title: String = "New Chat") throws -> ChatSession {
         let session = ChatSession(title: title)
         context.insert(session)
-        try context.save()
+        try save()
         return session
     }
 
@@ -31,7 +40,7 @@ final class SwiftDataChatRepository: ChatRepository {
         }
         s.title = title
         s.updatedAt = .now
-        try context.save()
+        try save()
     }
 
     func deleteSession(id: UUID) throws {
@@ -39,7 +48,7 @@ final class SwiftDataChatRepository: ChatRepository {
             throw RepositoryError.notFound("ChatSession \(id)")
         }
         context.delete(s)
-        try context.save()
+        try save()
     }
 
     func findSession(id: UUID) throws -> ChatSession? {
@@ -57,7 +66,7 @@ final class SwiftDataChatRepository: ChatRepository {
         message.session = session
         context.insert(message)
         session.updatedAt = .now
-        try context.save()
+        try save()
     }
 
     func messages(in session: ChatSession) throws -> [ChatMessage] {
