@@ -1,12 +1,16 @@
+import AppKit
 import SwiftUI
 import SwiftData
 
 @main
 struct Spending_TrackerApp: App {
     @State private var container: AppContainer
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var terminateObserver: NSObjectProtocol?
 
     init() {
-        let modelContainer = PersistenceController.makeContainer(inMemory: false)
+        // Use in-memory container for encrypted vault
+        let modelContainer = PersistenceController.makeInMemoryContainer()
         _container = State(initialValue: AppContainer(modelContainer: modelContainer))
     }
 
@@ -16,6 +20,27 @@ struct Spending_TrackerApp: App {
         }
         .modelContainer(container.modelContainer)
         .windowResizability(.contentSize)
+        .onAppear {
+            // Register for app termination notification
+            terminateObserver = NotificationCenter.default.addObserver(
+                forName: NSApplication.willTerminateNotification,
+                object: nil,
+                queue: .main
+            ) { [container] _ in
+                try? container.snapshot()
+            }
+        }
+        .onDisappear {
+            if let observer = terminateObserver {
+                NotificationCenter.default.removeObserver(observer)
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .inactive || newPhase == .background {
+                // Snapshot when app goes to background
+                try? container.snapshot()
+            }
+        }
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("New Transaction") {

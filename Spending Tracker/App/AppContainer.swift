@@ -1,4 +1,5 @@
 import Foundation
+import LocalAuthentication
 import SwiftData
 
 @MainActor
@@ -22,6 +23,9 @@ final class AppContainer {
     let budgetsVM: BudgetsViewModel
     let dashboardVM: DashboardViewModel
     let chatService: ChatService
+
+    let vaultCoordinator: VaultCoordinator
+    private let migrationContainer: ModelContainer?
 
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
@@ -76,5 +80,39 @@ final class AppContainer {
             settings: settings,
             capabilityStore: capabilityStore
         )
+
+        // Create migration container for reading plaintext store
+        self.migrationContainer = PersistenceController.makeOnDiskContainer()
+
+        // Setup vault coordinator
+        let vaultURL = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)
+            .first!
+            .appendingPathComponent("vault.enc", isDirectory: false)
+        let keyStore = KeychainVaultKeyStore()
+        self.vaultCoordinator = VaultCoordinator(
+            keyStore: keyStore,
+            context: context,
+            vaultURL: vaultURL,
+            importExportService: importExportService,
+            migrationContainer: migrationContainer
+        )
+    }
+
+    /// Loads the vault after successful authentication.
+    /// - Parameter authContext: The LAContext from biometric authentication.
+    /// - Throws: Errors from vault loading.
+    func loadVault(authContext: LAContext) throws {
+        try vaultCoordinator.loadVault(authContext: authContext)
+    }
+
+    /// Schedules a snapshot to be taken after a short delay.
+    func scheduleSnapshot() {
+        vaultCoordinator.scheduleSnapshot()
+    }
+
+    /// Immediately takes a snapshot.
+    func snapshot() throws {
+        try vaultCoordinator.snapshot()
     }
 }
