@@ -6,6 +6,7 @@ struct SettingsView: View {
     @Bindable var settings: AppSettings
     let importExportService: ImportExportService
     let capabilityStore: ModelCapabilityStore
+    let container: AppContainer
 
     var body: some View {
         TabView {
@@ -15,7 +16,7 @@ struct SettingsView: View {
                 .tabItem { Label("Payment Methods", systemImage: "creditcard") }
             LLMSettingsView(settings: settings, store: capabilityStore)
                 .tabItem { Label("LLM", systemImage: "brain") }
-            SecuritySettingsView(settings: settings)
+            SecuritySettingsView(settings: settings, container: container)
                 .tabItem { Label("Security", systemImage: "lock") }
             BackupView(service: importExportService)
                 .tabItem { Label("Backup", systemImage: "externaldrive") }
