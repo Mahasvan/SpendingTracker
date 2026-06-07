@@ -40,8 +40,7 @@ struct RootView: View {
                 pmRepo: container.paymentMethodRepo,
                 settings: container.settings,
                 importExportService: container.importExportService,
-                capabilityStore: container.capabilityStore,
-                container: container
+                capabilityStore: container.capabilityStore
             )
         }
     }

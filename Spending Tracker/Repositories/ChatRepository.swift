@@ -16,22 +16,12 @@ protocol ChatRepository: AnyObject {
 final class SwiftDataChatRepository: ChatRepository {
     private let context: ModelContext
 
-    /// Invoked after every successful save so the vault can be re-snapshotted.
-    var onSave: (() -> Void)?
-
-    init(context: ModelContext) {
-        self.context = context
-    }
-
-    private func save() throws {
-        try context.save()
-        onSave?()
-    }
+    init(context: ModelContext) { self.context = context }
 
     func createSession(title: String = "New Chat") throws -> ChatSession {
         let session = ChatSession(title: title)
         context.insert(session)
-        try save()
+        try context.save()
         return session
     }
 
@@ -41,7 +31,7 @@ final class SwiftDataChatRepository: ChatRepository {
         }
         s.title = title
         s.updatedAt = .now
-        try save()
+        try context.save()
     }
 
     func deleteSession(id: UUID) throws {
@@ -49,7 +39,7 @@ final class SwiftDataChatRepository: ChatRepository {
             throw RepositoryError.notFound("ChatSession \(id)")
         }
         context.delete(s)
-        try save()
+        try context.save()
     }
 
     func findSession(id: UUID) throws -> ChatSession? {
@@ -67,7 +57,7 @@ final class SwiftDataChatRepository: ChatRepository {
         message.session = session
         context.insert(message)
         session.updatedAt = .now
-        try save()
+        try context.save()
     }
 
     func messages(in session: ChatSession) throws -> [ChatMessage] {

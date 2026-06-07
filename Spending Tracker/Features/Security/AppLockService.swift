@@ -10,7 +10,6 @@ final class AppLockService {
     private(set) var isUnlocked: Bool
     private(set) var isAuthenticating = false
     var lastError: String?
-    private(set) var authContext: LAContext?
 
     init(settings: AppSettings) {
         self.settings = settings
@@ -41,10 +40,7 @@ final class AppLockService {
                 localizedReason: "Unlock Spending Tracker"
             )
             isUnlocked = ok
-            if ok {
-                lastError = nil
-                authContext = context
-            }
+            if ok { lastError = nil }
         } catch {
             lastError = error.localizedDescription
         }

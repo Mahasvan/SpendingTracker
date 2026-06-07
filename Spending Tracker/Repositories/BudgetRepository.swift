@@ -15,29 +15,19 @@ protocol BudgetRepository: AnyObject {
 final class SwiftDataBudgetRepository: BudgetRepository {
     private let context: ModelContext
 
-    /// Invoked after every successful save so the vault can be re-snapshotted.
-    var onSave: (() -> Void)?
-
-    init(context: ModelContext) {
-        self.context = context
-    }
-
-    private func save() throws {
-        try context.save()
-        onSave?()
-    }
+    init(context: ModelContext) { self.context = context }
 
     func add(_ b: Budget) throws {
         context.insert(b)
-        try save()
+        try context.save()
     }
 
-    func update(_ b: Budget) throws { try save() }
+    func update(_ b: Budget) throws { try context.save() }
 
     func delete(id: UUID) throws {
         guard let b = try find(id: id) else { throw RepositoryError.notFound("Budget \(id)") }
         context.delete(b)
-        try save()
+        try context.save()
     }
 
     func find(id: UUID) throws -> Budget? {

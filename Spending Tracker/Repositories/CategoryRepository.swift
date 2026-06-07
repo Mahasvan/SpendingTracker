@@ -15,29 +15,19 @@ protocol CategoryRepository: AnyObject {
 final class SwiftDataCategoryRepository: CategoryRepository {
     private let context: ModelContext
 
-    /// Invoked after every successful save so the vault can be re-snapshotted.
-    var onSave: (() -> Void)?
-
-    init(context: ModelContext) {
-        self.context = context
-    }
-
-    private func save() throws {
-        try context.save()
-        onSave?()
-    }
+    init(context: ModelContext) { self.context = context }
 
     func add(_ c: Category) throws {
         context.insert(c)
-        try save()
+        try context.save()
     }
 
-    func update(_ c: Category) throws { try save() }
+    func update(_ c: Category) throws { try context.save() }
 
     func delete(id: UUID) throws {
         guard let c = try find(id: id) else { throw RepositoryError.notFound("Category \(id)") }
         context.delete(c)
-        try save()
+        try context.save()
     }
 
     func find(id: UUID) throws -> Category? {

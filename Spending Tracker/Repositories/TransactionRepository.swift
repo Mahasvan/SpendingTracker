@@ -37,26 +37,18 @@ protocol TransactionRepository: AnyObject {
 final class SwiftDataTransactionRepository: TransactionRepository {
     private let context: ModelContext
 
-    /// Invoked after every successful save so the vault can be re-snapshotted.
-    var onSave: (() -> Void)?
-
     init(context: ModelContext) {
         self.context = context
     }
 
-    private func save() throws {
-        try context.save()
-        onSave?()
-    }
-
     func add(_ tx: Transaction) throws {
         context.insert(tx)
-        try save()
+        try context.save()
     }
 
     func update(_ tx: Transaction) throws {
         tx.updatedAt = .now
-        try save()
+        try context.save()
     }
 
     func delete(id: UUID) throws {
@@ -64,7 +56,7 @@ final class SwiftDataTransactionRepository: TransactionRepository {
             throw RepositoryError.notFound("Transaction \(id)")
         }
         context.delete(tx)
-        try save()
+        try context.save()
     }
 
     func find(id: UUID) throws -> Transaction? {
