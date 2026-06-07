@@ -42,7 +42,7 @@ final class KeychainVaultKeyStore: VaultKeyStore {
         let status = SecItemCopyMatching(query as CFDictionary, &result)
 
         guard status == errSecSuccess, let keyData = result as? Data else {
-            throw KeychainError(status: status)
+            throw KeychainError.keychainStatus(status)
         }
 
         return SymmetricKey(data: keyData)
@@ -68,10 +68,10 @@ final class KeychainVaultKeyStore: VaultKeyStore {
             .userPresence,
             &accessError
         ) else {
-            if let error = accessError?.takeRetainedValue() as Error {
+            if let error = accessError?.takeRetainedValue() {
                 throw error
             }
-            throw KeychainError(status: errSecInternalError)
+            throw KeychainError.keychainStatus(errSecInternalError)
         }
 
         let queryWithAccess: [String: Any] = query.merging([
@@ -81,7 +81,7 @@ final class KeychainVaultKeyStore: VaultKeyStore {
         let status = SecItemAdd(queryWithAccess as CFDictionary, nil)
 
         guard status == errSecSuccess else {
-            throw KeychainError(status: status)
+            throw KeychainError.keychainStatus(status)
         }
     }
 
@@ -95,7 +95,7 @@ final class KeychainVaultKeyStore: VaultKeyStore {
         let status = SecItemDelete(query as CFDictionary)
 
         guard status == errSecSuccess || status == errSecItemNotFound else {
-            throw KeychainError(status: status)
+            throw KeychainError.keychainStatus(status)
         }
     }
 
@@ -113,20 +113,23 @@ final class KeychainVaultKeyStore: VaultKeyStore {
 }
 
 enum KeychainError: LocalizedError {
-    case status(OSStatus)
+    case keychainStatus(OSStatus)
 
     var errorDescription: String? {
-        switch status {
-        case errSecItemNotFound:
-            return "Key not found in Keychain"
-        case errSecUserCanceled:
-            return "Authentication canceled by user"
-        case errSecAuthFailed:
-            return "Authentication failed"
-        case errSecInteractionNotAllowed:
-            return "User interaction not allowed"
-        default:
-            return "Keychain error: \(status)"
+        switch self {
+        case .keychainStatus(let osStatus):
+            switch osStatus {
+            case errSecItemNotFound:
+                return "Key not found in Keychain"
+            case errSecUserCanceled:
+                return "Authentication canceled by user"
+            case errSecAuthFailed:
+                return "Authentication failed"
+            case errSecInteractionNotAllowed:
+                return "User interaction not allowed"
+            default:
+                return "Keychain error: \(osStatus)"
+            }
         }
     }
 }

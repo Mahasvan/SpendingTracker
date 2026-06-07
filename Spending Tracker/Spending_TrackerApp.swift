@@ -6,12 +6,23 @@ import SwiftData
 struct Spending_TrackerApp: App {
     @State private var container: AppContainer
     @Environment(\.scenePhase) private var scenePhase
-    @State private var terminateObserver: NSObjectProtocol?
 
     init() {
         // Use in-memory container for encrypted vault
         let modelContainer = PersistenceController.makeInMemoryContainer()
         _container = State(initialValue: AppContainer(modelContainer: modelContainer))
+
+        // Register for app termination notification. The handler hops to the
+        // main actor since snapshot() is MainActor-isolated.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification,
+            object: nil,
+            queue: .main
+        ) { [container] _ in
+            MainActor.assumeIsolated {
+                try? container.snapshot()
+            }
+        }
     }
 
     var body: some Scene {
@@ -20,21 +31,6 @@ struct Spending_TrackerApp: App {
         }
         .modelContainer(container.modelContainer)
         .windowResizability(.contentSize)
-        .onAppear {
-            // Register for app termination notification
-            terminateObserver = NotificationCenter.default.addObserver(
-                forName: NSApplication.willTerminateNotification,
-                object: nil,
-                queue: .main
-            ) { [container] _ in
-                try? container.snapshot()
-            }
-        }
-        .onDisappear {
-            if let observer = terminateObserver {
-                NotificationCenter.default.removeObserver(observer)
-            }
-        }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .inactive || newPhase == .background {
                 // Snapshot when app goes to background

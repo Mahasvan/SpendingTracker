@@ -28,28 +28,29 @@ enum PersistenceController {
         }
     }
 
-    /// Creates an on-disk container for migration from plaintext.
-    /// - Returns: An on-disk ModelContainer.
-    static func makeOnDiskContainer() -> ModelContainer {
+    /// URL of the legacy on-disk SwiftData store, used to detect whether a
+    /// pre-encryption plaintext database exists and needs migrating.
+    static var legacyStoreURL: URL {
+        let appSupport = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        return appSupport.appendingPathComponent("default.store", isDirectory: false)
+    }
+
+    /// Returns an on-disk container pointing at the legacy plaintext store, but
+    /// ONLY if that store already exists. Returns nil for fresh installs so we
+    /// never create or seed a plaintext database on disk.
+    ///
+    /// Note: this container is intentionally NOT seeded — seeding for new users
+    /// happens inside the encrypted vault instead.
+    static func makeLegacyMigrationContainer() -> ModelContainer? {
+        guard FileManager.default.fileExists(atPath: legacyStoreURL.path) else {
+            return nil
+        }
         let config = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: false,
             cloudKitDatabase: .none
         )
-        do {
-            let container = try ModelContainer(for: schema, configurations: [config])
-            DefaultDataSeeder.seedIfNeeded(in: container.mainContext)
-            return container
-        } catch {
-            fatalError("ModelContainer init failed: \(error)")
-        }
-    }
-
-    static func makeContainer(inMemory: Bool = false) -> ModelContainer {
-        if inMemory {
-            return makeInMemoryContainer()
-        } else {
-            return makeOnDiskContainer()
-        }
+        return try? ModelContainer(for: schema, configurations: [config])
     }
 }

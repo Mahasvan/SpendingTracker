@@ -1,3 +1,4 @@
+import LocalAuthentication
 import SwiftUI
 
 struct ContentView: View {

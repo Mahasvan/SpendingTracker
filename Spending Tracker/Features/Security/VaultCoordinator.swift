@@ -3,6 +3,17 @@ import Foundation
 import LocalAuthentication
 import SwiftData
 
+enum VaultCoordinatorError: LocalizedError {
+    case vaultLocked
+
+    var errorDescription: String? {
+        switch self {
+        case .vaultLocked:
+            return "The vault is locked. Unlock the app before saving."
+        }
+    }
+}
+
 /// Coordinates vault encryption/decryption and data loading.
 @MainActor
 final class VaultCoordinator {
@@ -11,6 +22,10 @@ final class VaultCoordinator {
     private let vaultURL: URL
     private let importExportService: ImportExportService
     private let migrationContainer: ModelContainer?
+
+    /// The encryption key, cached in memory after a successful unlock so that
+    /// snapshots don't re-prompt for biometrics on every save.
+    private var cachedKey: SymmetricKey?
 
     /// Debounce timer for snapshot requests.
     private var snapshotTask: Task<Void, Never>?
@@ -32,6 +47,9 @@ final class VaultCoordinator {
         self.migrationContainer = migrationContainer
     }
 
+    /// Whether the vault has been unlocked (key cached) in this session.
+    var isUnlocked: Bool { cachedKey != nil }
+
     // MARK: - Load
 
     /// Loads the vault into the in-memory context.
@@ -43,14 +61,23 @@ final class VaultCoordinator {
             try keyStore.createKey()
         }
 
-        // Load key
+        // Load key once (this is the only call that may prompt for biometrics)
+        // and cache it for the rest of the session so snapshots don't re-prompt.
         let key = try keyStore.loadKey(context: authContext)
+        cachedKey = key
         let vault = CryptoVault(key: key)
 
         // Check if vault file exists
         if !FileManager.default.fileExists(atPath: vaultURL.path) {
-            // First run: no vault yet, try migration from plaintext store
+            // First run: no vault yet, try migration from plaintext store.
             try migrateFromPlaintext(vault: vault)
+            // If still nothing was loaded (brand-new user), seed defaults into
+            // the in-memory store and write the first encrypted snapshot.
+            if try isContextEmpty() {
+                DefaultDataSeeder.seedIfNeeded(in: context)
+                try context.save()
+                try snapshot()
+            }
             return
         }
 
@@ -62,39 +89,43 @@ final class VaultCoordinator {
         _ = try importExportService.importBackup(decryptedData, mode: .replace)
     }
 
+    private func isContextEmpty() throws -> Bool {
+        let categoryCount = try context.fetchCount(FetchDescriptor<Category>())
+        let txCount = try context.fetchCount(FetchDescriptor<Transaction>())
+        return categoryCount == 0 && txCount == 0
+    }
+
     // MARK: - Snapshot
 
     /// Schedules a snapshot to be taken after a short delay.
     func scheduleSnapshot() {
         snapshotTask?.cancel()
-        snapshotTask = Task {
+        snapshotTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
-            if !Task.isCancelled {
-                try? snapshot()
-            }
+            guard let self, !Task.isCancelled else { return }
+            try? self.snapshot()
         }
     }
 
     /// Immediately takes a snapshot (encrypts and writes the vault).
-    /// - Throws: Errors from export, encryption, or file I/O.
+    /// Uses the in-memory cached key, so it never prompts for biometrics.
+    /// - Throws: `VaultCoordinatorError.vaultLocked` if called before unlock,
+    ///   or errors from export, encryption, or file I/O.
     func snapshot() throws {
+        // Use the cached key. If the vault was never unlocked, refuse to write
+        // rather than prompting for biometrics from a background/save context.
+        guard let key = cachedKey else {
+            throw VaultCoordinatorError.vaultLocked
+        }
+
         // Export to JSON
         let jsonData = try importExportService.exportAll(includeChatHistory: true)
 
-        // Load key (no auth context needed for snapshot, key is already in memory)
-        // Note: In production, we'd want to ensure the key is still accessible.
-        // For now, we'll load it without auth context; this works because the key
-        // is accessible when the app is unlocked.
-        let key = try keyStore.loadKey(context: LAContext())
         let vault = CryptoVault(key: key)
-
-        // Encrypt
         let encryptedData = try vault.seal(jsonData)
 
-        // Atomic write
-        let tempURL = vaultURL.appendingPathExtension("tmp")
-        try encryptedData.write(to: tempURL, options: .atomic)
-        try FileManager.default.moveItem(at: tempURL, to: vaultURL)
+        // Atomic write that overwrites any existing vault file.
+        try encryptedData.write(to: vaultURL, options: .atomic)
     }
 
     // MARK: - Migration

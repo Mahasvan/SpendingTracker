@@ -14,11 +14,12 @@ protocol CategoryRepository: AnyObject {
 @MainActor
 final class SwiftDataCategoryRepository: CategoryRepository {
     private let context: ModelContext
-    private let onSave: (() -> Void)?
 
-    init(context: ModelContext, onSave: (() -> Void)? = nil) {
+    /// Invoked after every successful save so the vault can be re-snapshotted.
+    var onSave: (() -> Void)?
+
+    init(context: ModelContext) {
         self.context = context
-        self.onSave = onSave
     }
 
     private func save() throws {

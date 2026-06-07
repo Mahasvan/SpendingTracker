@@ -5,36 +5,7 @@ import SwiftData
 import XCTest
 @testable import Spending_Tracker
 
-/// Mock VaultKeyStore for testing
-final class MockVaultKeyStore: VaultKeyStore {
-    private var key: SymmetricKey?
-    var shouldThrowOnLoad = false
-    var loadContext: LAContext?
-
-    func loadKey(context: LAContext) throws -> SymmetricKey {
-        loadContext = context
-        if shouldThrowOnLoad {
-            throw KeychainError(status: errSecItemNotFound)
-        }
-        guard let key = key else {
-            throw KeychainError(status: errSecItemNotFound)
-        }
-        return key
-    }
-
-    func createKey() throws {
-        key = SymmetricKey(size: .bits256)
-    }
-
-    func deleteKey() throws {
-        key = nil
-    }
-
-    var hasKey: Bool {
-        key != nil
-    }
-}
-
+@MainActor
 final class VaultCoordinatorTests: XCTestCase {
     private var temporaryDirectory: URL!
     private var vaultURL: URL!
@@ -47,19 +18,13 @@ final class VaultCoordinatorTests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
 
-        // Create temporary directory
         temporaryDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
-
         vaultURL = temporaryDirectory.appendingPathComponent("vault.enc")
 
-        // Create in-memory container
-        modelContainer = try ModelContainer(
-            for: Transaction.self,
-            configurations: [ModelConfiguration(isStoredInMemoryOnly: true)]
-        )
-        modelContext = ModelContext(modelContainer)
+        modelContainer = try TestSupport.makeContainer()
+        modelContext = modelContainer.mainContext
 
         importExportService = ImportExportService(context: modelContext)
         mockKeyStore = MockVaultKeyStore()
@@ -75,129 +40,105 @@ final class VaultCoordinatorTests: XCTestCase {
     }
 
     override func tearDown() async throws {
-        try await super.tearDown()
-
-        // Clean up temporary directory
         try? FileManager.default.removeItem(at: temporaryDirectory)
+        try await super.tearDown()
     }
 
     func testSnapshotLoadRoundTrip() throws {
-        // Add some test data
-        let category = Category(name: "Food", colorHex: "#FF0000", systemImage: "fork.knife")
+        // Unlock (no vault yet -> seeds defaults and writes initial snapshot).
+        try vaultCoordinator.loadVault(authContext: LAContext())
+
+        // Add a distinctive transaction.
+        let category = Category(name: "ZZTestCategory", colorHex: "#FF0000", systemImage: "fork.knife")
         modelContext.insert(category)
-
-        let paymentMethod = PaymentMethod(name: "Credit Card", kind: .creditCard)
-        modelContext.insert(paymentMethod)
-
         let transaction = Transaction(
-            amount: 10.50,
-            type: .expense,
-            date: Date(),
-            note: "Lunch",
-            category: category,
-            paymentMethod: paymentMethod
+            amount: 10.50, type: .expense, date: Date(),
+            note: "RoundTripLunch", category: category
         )
         modelContext.insert(transaction)
         try modelContext.save()
 
-        // Snapshot
+        // Snapshot, then wipe the in-memory store.
         try vaultCoordinator.snapshot()
-        XCTAssertTrue(FileManager.default.fileExists(atPath: vaultURL.path))
-
-        // Clear the context
-        for tx in try modelContext.fetch(FetchDescriptor<Transaction>()) {
-            modelContext.delete(tx)
-        }
-        for cat in try modelContext.fetch(FetchDescriptor<Category>()) {
-            modelContext.delete(cat)
-        }
-        for pm in try modelContext.fetch(FetchDescriptor<PaymentMethod>()) {
-            modelContext.delete(pm)
-        }
+        for tx in try modelContext.fetch(FetchDescriptor<Transaction>()) { modelContext.delete(tx) }
+        for c in try modelContext.fetch(FetchDescriptor<Category>()) { modelContext.delete(c) }
         try modelContext.save()
+        XCTAssertEqual(try modelContext.fetchCount(FetchDescriptor<Transaction>()), 0)
 
-        // Load vault
+        // Reload from the vault and confirm the transaction returns.
         try vaultCoordinator.loadVault(authContext: LAContext())
-
-        // Verify data was restored
-        let transactions = try modelContext.fetch(FetchDescriptor<Transaction>())
-        XCTAssertEqual(transactions.count, 1)
-        XCTAssertEqual(transactions.first?.amount, 10.50)
-        XCTAssertEqual(transactions.first?.note, "Lunch")
-
-        let categories = try modelContext.fetch(FetchDescriptor<Category>())
-        XCTAssertEqual(categories.count, 1)
-        XCTAssertEqual(categories.first?.name, "Food")
-
-        let paymentMethods = try modelContext.fetch(FetchDescriptor<PaymentMethod>())
-        XCTAssertEqual(paymentMethods.count, 1)
-        XCTAssertEqual(paymentMethods.first?.name, "Credit Card")
+        let restored = try modelContext.fetch(FetchDescriptor<Transaction>())
+        XCTAssertTrue(restored.contains { $0.note == "RoundTripLunch" })
     }
 
-    func testLoadVaultWithNoVaultFile() throws {
-        // Should create key and not fail when vault doesn't exist
+    func testLoadVaultSeedsDefaultsForNewUser() throws {
         XCTAssertFalse(FileManager.default.fileExists(atPath: vaultURL.path))
+
         try vaultCoordinator.loadVault(authContext: LAContext())
-        // Should succeed (no data to load)
+
+        // Fresh install: defaults seeded into the in-memory store and a vault written.
+        XCTAssertTrue(FileManager.default.fileExists(atPath: vaultURL.path))
+        XCTAssertGreaterThan(try modelContext.fetchCount(FetchDescriptor<Category>()), 0)
     }
 
-    func testLoadVaultWithNoKey() throws {
-        // Delete the key
+    func testLoadVaultCreatesKeyWhenMissing() throws {
         try mockKeyStore.deleteKey()
         XCTAssertFalse(mockKeyStore.hasKey)
 
-        // Load should create a new key
         try vaultCoordinator.loadVault(authContext: LAContext())
         XCTAssertTrue(mockKeyStore.hasKey)
+        XCTAssertTrue(vaultCoordinator.isUnlocked)
     }
 
-    func testSnapshotCreatesEncryptedFile() throws {
-        // Add test data
-        let category = Category(name: "Test", colorHex: "#000000", systemImage: "circle")
+    func testSnapshotBeforeUnlockThrows() {
+        // No loadVault call -> no cached key -> snapshot must refuse.
+        XCTAssertThrowsError(try vaultCoordinator.snapshot()) { error in
+            XCTAssertTrue(error is VaultCoordinatorError)
+        }
+    }
+
+    func testSnapshotProducesEncryptedFile() throws {
+        try vaultCoordinator.loadVault(authContext: LAContext())
+
+        let category = Category(name: "SecretCategoryXYZ", colorHex: "#000000", systemImage: "circle")
         modelContext.insert(category)
         try modelContext.save()
-
-        // Snapshot
         try vaultCoordinator.snapshot()
 
-        // Verify file exists and is not plaintext
-        XCTAssertTrue(FileManager.default.fileExists(atPath: vaultURL.path))
         let fileData = try Data(contentsOf: vaultURL)
-
-        // The file should not contain the plaintext "Test"
         let fileString = String(data: fileData, encoding: .utf8) ?? ""
-        XCTAssertFalse(fileString.contains("Test"), "Vault file should be encrypted, not plaintext")
+        XCTAssertFalse(fileString.contains("SecretCategoryXYZ"), "Vault file should be encrypted")
+    }
+
+    func testRepeatedSnapshotsSucceed() throws {
+        // Regression: snapshot used to fail on the 2nd call (moveItem over existing file).
+        try vaultCoordinator.loadVault(authContext: LAContext())
+        try vaultCoordinator.snapshot()
+        XCTAssertNoThrow(try vaultCoordinator.snapshot())
+        XCTAssertNoThrow(try vaultCoordinator.snapshot())
     }
 
     func testDeleteVault() throws {
-        // Create a vault
-        let category = Category(name: "Test", colorHex: "#000000", systemImage: "circle")
-        modelContext.insert(category)
-        try modelContext.save()
-        try vaultCoordinator.snapshot()
-
+        try vaultCoordinator.loadVault(authContext: LAContext())
         XCTAssertTrue(FileManager.default.fileExists(atPath: vaultURL.path))
 
-        // Delete vault
         try vaultCoordinator.deleteVault()
-
         XCTAssertFalse(FileManager.default.fileExists(atPath: vaultURL.path))
         XCTAssertFalse(vaultCoordinator.isMigrationCompleted)
     }
 
-    func testScheduleSnapshot() async throws {
-        // Add test data
-        let category = Category(name: "Test", colorHex: "#000000", systemImage: "circle")
+    func testScheduleSnapshotWritesAfterDebounce() async throws {
+        try vaultCoordinator.loadVault(authContext: LAContext())
+        // Remove the file written during seeding to prove the scheduled write happens.
+        try FileManager.default.removeItem(at: vaultURL)
+
+        let category = Category(name: "Debounced", colorHex: "#000000", systemImage: "circle")
         modelContext.insert(category)
         try modelContext.save()
 
-        // Schedule snapshot
         vaultCoordinator.scheduleSnapshot()
-
-        // Wait for debounce (2 seconds)
         try await Task.sleep(nanoseconds: 2_500_000_000)
 
-        // Verify snapshot was taken
         XCTAssertTrue(FileManager.default.fileExists(atPath: vaultURL.path))
     }
 }

@@ -1,6 +1,10 @@
 import CryptoKit
 import Foundation
 
+enum CryptoVaultError: Error {
+    case encryptionFailed
+}
+
 /// Provides AES-GCM encryption/decryption for vault data.
 struct CryptoVault {
     private let key: SymmetricKey
@@ -15,7 +19,10 @@ struct CryptoVault {
     /// - Throws: CryptoKit errors if encryption fails.
     func seal(_ plaintext: Data) throws -> Data {
         let sealedBox = try AES.GCM.seal(plaintext, using: key)
-        return sealedBox.combined
+        guard let combined = sealedBox.combined else {
+            throw CryptoVaultError.encryptionFailed
+        }
+        return combined
     }
 
     /// Decrypts the given sealed box data.

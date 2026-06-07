@@ -48,7 +48,7 @@ final class CryptoVaultTests: XCTestCase {
 
         // Attempt to open with wrong key should fail
         XCTAssertThrowsError(try vault2.open(sealed)) { error in
-            XCTAssertTrue(error is CryptoKitError, "Expected CryptoKitError, got \(type(of: error))")
+            XCTAssertTrue(error is CryptoKitError || error is CryptoVaultError, "Expected CryptoKitError or CryptoVaultError, got \(type(of: error))")
         }
     }
 
@@ -64,7 +64,7 @@ final class CryptoVaultTests: XCTestCase {
 
         // Attempt to open tampered data should fail
         XCTAssertThrowsError(try vault.open(sealed)) { error in
-            XCTAssertTrue(error is CryptoKitError, "Expected CryptoKitError, got \(type(of: error))")
+            XCTAssertTrue(error is CryptoKitError || error is CryptoVaultError, "Expected CryptoKitError or CryptoVaultError, got \(type(of: error))")
         }
     }
 

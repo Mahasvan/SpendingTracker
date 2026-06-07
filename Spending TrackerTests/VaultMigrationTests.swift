@@ -5,34 +5,6 @@ import SwiftData
 import XCTest
 @testable import Spending_Tracker
 
-/// Mock VaultKeyStore for testing
-final class MockVaultKeyStore: VaultKeyStore {
-    private var key: SymmetricKey?
-    var shouldThrowOnLoad = false
-
-    func loadKey(context: LAContext) throws -> SymmetricKey {
-        if shouldThrowOnLoad {
-            throw KeychainError(status: errSecItemNotFound)
-        }
-        guard let key = key else {
-            throw KeychainError(status: errSecItemNotFound)
-        }
-        return key
-    }
-
-    func createKey() throws {
-        key = SymmetricKey(size: .bits256)
-    }
-
-    func deleteKey() throws {
-        key = nil
-    }
-
-    var hasKey: Bool {
-        key != nil
-    }
-}
-
 final class VaultMigrationTests: XCTestCase {
     private var temporaryDirectory: URL!
     private var vaultURL: URL!

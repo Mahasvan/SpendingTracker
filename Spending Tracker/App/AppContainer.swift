@@ -33,21 +33,11 @@ final class AppContainer {
         self.settings = AppSettings()
         self.capabilityStore = ModelCapabilityStore(settings: settings)
 
-        let txRepo = SwiftDataTransactionRepository(context: context) { [weak self] in
-            self?.scheduleSnapshot()
-        }
-        let catRepo = SwiftDataCategoryRepository(context: context) { [weak self] in
-            self?.scheduleSnapshot()
-        }
-        let pmRepo = SwiftDataPaymentMethodRepository(context: context) { [weak self] in
-            self?.scheduleSnapshot()
-        }
-        let bRepo = SwiftDataBudgetRepository(context: context) { [weak self] in
-            self?.scheduleSnapshot()
-        }
-        let cRepo = SwiftDataChatRepository(context: context) { [weak self] in
-            self?.scheduleSnapshot()
-        }
+        let txRepo = SwiftDataTransactionRepository(context: context)
+        let catRepo = SwiftDataCategoryRepository(context: context)
+        let pmRepo = SwiftDataPaymentMethodRepository(context: context)
+        let bRepo = SwiftDataBudgetRepository(context: context)
+        let cRepo = SwiftDataChatRepository(context: context)
 
         self.transactionRepo = txRepo
         self.categoryRepo = catRepo
@@ -91,8 +81,9 @@ final class AppContainer {
             capabilityStore: capabilityStore
         )
 
-        // Create migration container for reading plaintext store
-        self.migrationContainer = PersistenceController.makeOnDiskContainer()
+        // Only create a migration container when a legacy plaintext store
+        // actually exists; never create/seed a plaintext store for new users.
+        self.migrationContainer = PersistenceController.makeLegacyMigrationContainer()
 
         // Setup vault coordinator
         let vaultURL = FileManager.default
@@ -107,6 +98,15 @@ final class AppContainer {
             importExportService: importExportService,
             migrationContainer: migrationContainer
         )
+
+        // Wire repository saves to schedule encrypted snapshots. Safe to
+        // reference self here since all stored properties are initialized.
+        let snapshotHook: () -> Void = { [weak self] in self?.scheduleSnapshot() }
+        txRepo.onSave = snapshotHook
+        catRepo.onSave = snapshotHook
+        pmRepo.onSave = snapshotHook
+        bRepo.onSave = snapshotHook
+        cRepo.onSave = snapshotHook
     }
 
     /// Loads the vault after successful authentication.
