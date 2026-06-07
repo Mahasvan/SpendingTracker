@@ -36,6 +36,7 @@ final class AppSettings {
             self.deletePolicy = .confirm
         }
         self.persistChatHistory = defaults.object(forKey: K.persistChat) as? Bool ?? true
+        self.maxHistoryMessages = defaults.object(forKey: K.maxHistoryMessages) as? Int ?? 40
         if let raw = defaults.string(forKey: K.reasoningLevel),
            let r = ReasoningLevel(rawValue: raw) {
             self.reasoningLevel = r
@@ -68,6 +69,10 @@ final class AppSettings {
     var persistChatHistory: Bool {
         didSet { defaults.set(persistChatHistory, forKey: K.persistChat) }
     }
+    /// Maximum number of trailing messages (besides the system prompt) sent to the model.
+    var maxHistoryMessages: Int {
+        didSet { defaults.set(maxHistoryMessages, forKey: K.maxHistoryMessages) }
+    }
     var reasoningLevel: ReasoningLevel {
         didSet { defaults.set(reasoningLevel.rawValue, forKey: K.reasoningLevel) }
     }
@@ -81,6 +86,7 @@ final class AppSettings {
         static let writePolicy = "tools.policy.write"
         static let deletePolicy = "tools.policy.delete"
         static let persistChat = "chat.persist"
+        static let maxHistoryMessages = "chat.maxHistoryMessages"
         static let reasoningLevel = "llm.reasoning.level"
     }
 }

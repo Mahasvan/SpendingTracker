@@ -50,6 +50,12 @@ struct LLMSettingsView: View {
             }
             Section("Chat") {
                 Toggle("Persist chat history", isOn: $settings.persistChatHistory)
+                Stepper(value: $settings.maxHistoryMessages, in: 4...200, step: 2) {
+                    Text("Message history limit: \(settings.maxHistoryMessages)")
+                }
+                Text("How many recent messages are sent to the model. Lower values keep the context small for smaller local models.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)

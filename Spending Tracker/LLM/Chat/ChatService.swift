@@ -17,9 +17,6 @@ final class ChatService {
     private let settings: AppSettings
     private let capabilityStore: ModelCapabilityStore?
     private let maxToolIterations = 8
-    /// Cap on how many trailing messages (besides the system prompt) we send to the
-    /// model, keeping the context window small enough for smaller local models.
-    private let maxHistoryMessages = 40
 
     /// The static portion of the system prompt. The current date is appended at request
     /// time by `makeSystemPrompt()` so it never goes stale while the app stays open.
@@ -105,11 +102,12 @@ final class ChatService {
     private func historyForRequest() -> [LLMMessage] {
         // Always send a freshly-dated system prompt so it never goes stale.
         let system = LLMMessage(role: .system, content: makeSystemPrompt())
+        let limit = max(1, settings.maxHistoryMessages)
         let rest = messages.dropFirst()
-        guard rest.count > maxHistoryMessages else {
+        guard rest.count > limit else {
             return [system] + rest
         }
-        var tail = Array(rest.suffix(maxHistoryMessages))
+        var tail = Array(rest.suffix(limit))
         while let first = tail.first, first.role == .tool {
             tail.removeFirst()
         }
