@@ -37,7 +37,7 @@ final class AppSettings {
         }
         self.persistChatHistory = defaults.object(forKey: K.persistChat) as? Bool ?? true
         self.maxHistoryMessages = defaults.object(forKey: K.maxHistoryMessages) as? Int ?? 40
-        self.requireBiometricUnlock = defaults.object(forKey: K.requireBiometricUnlock) as? Bool ?? false
+        self.requireBiometricUnlock = defaults.object(forKey: K.requireBiometricUnlock) as? Bool ?? true
         if let raw = defaults.string(forKey: K.reasoningLevel),
            let r = ReasoningLevel(rawValue: raw) {
             self.reasoningLevel = r
