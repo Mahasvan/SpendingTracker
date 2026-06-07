@@ -71,10 +71,7 @@ struct GetPaymentMethodsTool: Tool {
         let items = try ctx.paymentMethodRepo.all(includeArchived: inc)
         return .array(items.map { pm in
             .object([
-                "id": .string(pm.id.uuidString),
-                "name": .string(pm.name),
-                "kind": .string(pm.kind.rawValue),
-                "archived": .bool(pm.archived)
+                "name": .string(pm.name)
             ])
         })
     }
