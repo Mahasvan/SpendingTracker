@@ -110,10 +110,11 @@ struct ChatView: View {
                     Text(settings.provider.displayName)
                         .font(.caption)
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
                 .background(.ultraThinMaterial, in: .capsule)
                 .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
 
                 Button {
                     service.reset()
