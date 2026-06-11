@@ -93,11 +93,20 @@ enum ReasoningLevel: String, Codable, CaseIterable, Identifiable, Sendable {
 
 enum LLMProvider: String, Codable, CaseIterable, Identifiable, Sendable {
     case ollama
+    case appleFoundation
 
     var id: String { rawValue }
     var displayName: String {
         switch self {
         case .ollama: return "Ollama"
+        case .appleFoundation: return "Apple Intelligence"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .ollama: return "server.rack"
+        case .appleFoundation: return "apple.logo"
         }
     }
 }

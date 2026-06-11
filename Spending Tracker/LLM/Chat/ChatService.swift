@@ -243,15 +243,26 @@ final class ChatService {
     }
 
     private func currentConfig() -> LLMConfig {
-        let url = URL(string: settings.ollamaBaseURL) ?? URL(string: "http://localhost:11434")!
-        let reasoning = (capabilityStore?.hasThinking ?? false) ? settings.reasoningLevel : .off
-        return LLMConfig(
-            provider: settings.provider,
-            baseURL: url,
-            model: settings.ollamaModel,
-            temperature: settings.temperature,
-            reasoning: reasoning
-        )
+        switch settings.provider {
+        case .ollama:
+            let url = URL(string: settings.ollamaBaseURL) ?? URL(string: "http://localhost:11434")!
+            let reasoning = (capabilityStore?.hasThinking ?? false) ? settings.reasoningLevel : .off
+            return LLMConfig(
+                provider: .ollama,
+                baseURL: url,
+                model: settings.ollamaModel,
+                temperature: settings.temperature,
+                reasoning: reasoning
+            )
+        case .appleFoundation:
+            return LLMConfig(
+                provider: .appleFoundation,
+                baseURL: URL(string: "https://on-device")!, // Not used for on-device model
+                model: "apple-intelligence",
+                temperature: settings.temperature,
+                reasoning: .off
+            )
+        }
     }
 
     private func escapeJSON(_ s: String) -> String {

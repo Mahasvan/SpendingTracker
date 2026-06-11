@@ -6,31 +6,49 @@ struct LLMSettingsView: View {
 
     var body: some View {
         Form {
+            // MARK: - Provider picker
             Section("Provider") {
                 Picker("LLM Provider", selection: $settings.provider) {
                     ForEach(LLMProvider.allCases) { p in
-                        Text(p.displayName).tag(p)
+                        Label(p.displayName, systemImage: p.icon).tag(p)
                     }
                 }
             }
-            Section("Ollama") {
-                TextField("Base URL", text: $settings.ollamaBaseURL)
-                modelRow
-                if store.availableModels.isEmpty {
-                    TextField("Model", text: $settings.ollamaModel)
-                        .help("No models were fetched. Enter a model name manually or tap Refresh.")
-                }
-                HStack {
-                    Text("Temperature: \(String(format: "%.2f", settings.temperature))")
-                    Slider(value: $settings.temperature, in: 0...1)
+
+            // MARK: - Apple Intelligence settings
+            if settings.provider == .appleFoundation {
+                appleIntelligenceSection
+            }
+
+            // MARK: - Ollama settings
+            if settings.provider == .ollama {
+                Section("Ollama") {
+                    TextField("Base URL", text: $settings.ollamaBaseURL)
+                    modelRow
+                    if store.availableModels.isEmpty {
+                        TextField("Model", text: $settings.ollamaModel)
+                            .help("No models were fetched. Enter a model name manually or tap Refresh.")
+                    }
+                    HStack {
+                        Text("Temperature: \(String(format: "%.2f", settings.temperature))")
+                        Slider(value: $settings.temperature, in: 0...1)
+                    }
                 }
             }
+
+            // MARK: - Model capabilities
             Section("Model Capabilities") {
                 capabilitiesRow
             }
-            Section("Reasoning") {
-                reasoningRow
+
+            // MARK: - Reasoning (Ollama-only, when model supports it)
+            if settings.provider == .ollama {
+                Section("Reasoning") {
+                    reasoningRow
+                }
             }
+
+            // MARK: - Tool permissions
             Section("Tool Permissions") {
                 Picker("Read tools", selection: $settings.readPolicy) {
                     ForEach(ToolConfirmPolicy.allCases) { p in
@@ -48,6 +66,8 @@ struct LLMSettingsView: View {
                     }
                 }
             }
+
+            // MARK: - Chat
             Section("Chat") {
                 Toggle("Persist chat history", isOn: $settings.persistChatHistory)
                 Stepper(value: $settings.maxHistoryMessages, in: 4...200, step: 2) {
@@ -67,9 +87,63 @@ struct LLMSettingsView: View {
             Task { await store.loadCapabilities(force: true) }
         }
         .onChange(of: settings.ollamaBaseURL) { _, _ in
+            if settings.provider == .ollama {
+                Task { await store.refreshAll() }
+            }
+        }
+        .onChange(of: settings.provider) { _, _ in
             Task { await store.refreshAll() }
         }
     }
+
+    // MARK: - Apple Intelligence Section
+
+    @ViewBuilder
+    private var appleIntelligenceSection: some View {
+        Section("Apple Intelligence") {
+            if #available(macOS 26.0, iOS 26.0, *) {
+                let status = AppleFoundationIntrospection.checkAvailability()
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(status.isAvailable ? Color.green : Color.red)
+                        .frame(width: 8, height: 8)
+                    Text(status.description)
+                        .foregroundStyle(status.isAvailable ? .primary : .secondary)
+                }
+
+                if status.isAvailable {
+                    Label("All processing happens on-device. Your data never leaves your Mac.", systemImage: "lock.shield")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if !status.isAvailable {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Apple Intelligence must be enabled in System Settings → Apple Intelligence & Siri.", systemImage: "gear")
+                        Label("Requires a Mac with Apple Silicon (M1 or later).", systemImage: "cpu")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+            } else {
+                Label("Apple Intelligence requires macOS 26.0 or later.", systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+            }
+        }
+
+        Section("About On-Device Model") {
+            VStack(alignment: .leading, spacing: 6) {
+                Label("~4,096 token context window (shorter conversations)", systemImage: "text.badge.minus")
+                Label("No reasoning/thinking mode", systemImage: "brain")
+                Label("Tool calling via prompt instructions", systemImage: "wrench.and.screwdriver")
+                Label("No image/vision support", systemImage: "photo")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    // MARK: - Ollama Components
 
     @ViewBuilder
     private var modelRow: some View {
@@ -107,6 +181,8 @@ struct LLMSettingsView: View {
         }
         return set
     }
+
+    // MARK: - Shared Components
 
     @ViewBuilder
     private var capabilitiesRow: some View {
@@ -166,3 +242,4 @@ struct LLMSettingsView: View {
         }
     }
 }
+

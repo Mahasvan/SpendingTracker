@@ -104,6 +104,17 @@ struct ChatView: View {
         .navigationTitle("Chatbot")
         .toolbar {
             ToolbarItemGroup {
+                HStack(spacing: 4) {
+                    Image(systemName: settings.provider.icon)
+                        .font(.caption2)
+                    Text(settings.provider.displayName)
+                        .font(.caption)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(.ultraThinMaterial, in: .capsule)
+                .foregroundStyle(.secondary)
+
                 Button {
                     service.reset()
                 } label: {
@@ -139,7 +150,8 @@ struct ChatView: View {
     }
 
     private var toolsWarningBar: some View {
-        Label("\"\(settings.ollamaModel)\" does not support tool calling. Pick a tool-capable model in Chat Settings to send messages.", systemImage: "exclamationmark.triangle.fill")
+        let modelName = settings.provider == .ollama ? "\"\(settings.ollamaModel)\"" : settings.provider.displayName
+        return Label("\(modelName) does not support tool calling. Pick a tool-capable model in Chat Settings to send messages.", systemImage: "exclamationmark.triangle.fill")
             .font(.caption)
             .foregroundStyle(.orange)
             .frame(maxWidth: .infinity, alignment: .leading)

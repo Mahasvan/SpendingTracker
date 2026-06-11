@@ -27,37 +27,68 @@ final class ModelCapabilityStore {
     }
 
     func refreshModels() async {
-        guard let client = introspection() else { return }
-        isLoadingModels = true
-        errorMessage = nil
-        defer { isLoadingModels = false }
-        do {
-            availableModels = try await client.listModels()
-        } catch {
-            errorMessage = (error as? LLMError)?.errorDescription ?? error.localizedDescription
+        switch settings.provider {
+        case .ollama:
+            guard let client = ollamaIntrospection() else { return }
+            isLoadingModels = true
+            errorMessage = nil
+            defer { isLoadingModels = false }
+            do {
+                availableModels = try await client.listModels()
+            } catch {
+                errorMessage = (error as? LLMError)?.errorDescription ?? error.localizedDescription
+            }
+
+        case .appleFoundation:
+            availableModels = ["On-Device Model"]
+            isLoadingModels = false
         }
     }
 
     func loadCapabilities(force: Bool = false) async {
-        let model = settings.ollamaModel
-        guard !model.isEmpty else {
-            capabilities = nil
-            checkedModel = nil
-            return
-        }
-        if !force, checkedModel == model, capabilities != nil { return }
-        guard let client = introspection() else { return }
-        isLoadingCapabilities = true
-        errorMessage = nil
-        defer { isLoadingCapabilities = false }
-        do {
-            let caps = try await client.capabilities(model: model)
-            capabilities = caps
-            checkedModel = model
-        } catch {
-            capabilities = nil
-            checkedModel = nil
-            errorMessage = (error as? LLMError)?.errorDescription ?? error.localizedDescription
+        switch settings.provider {
+        case .ollama:
+            let model = settings.ollamaModel
+            guard !model.isEmpty else {
+                capabilities = nil
+                checkedModel = nil
+                return
+            }
+            if !force, checkedModel == model, capabilities != nil { return }
+            guard let client = ollamaIntrospection() else { return }
+            isLoadingCapabilities = true
+            errorMessage = nil
+            defer { isLoadingCapabilities = false }
+            do {
+                let caps = try await client.capabilities(model: model)
+                capabilities = caps
+                checkedModel = model
+            } catch {
+                capabilities = nil
+                checkedModel = nil
+                errorMessage = (error as? LLMError)?.errorDescription ?? error.localizedDescription
+            }
+
+        case .appleFoundation:
+            isLoadingCapabilities = true
+            defer { isLoadingCapabilities = false }
+
+            if #available(macOS 26.0, iOS 26.0, *) {
+                let status = AppleFoundationIntrospection.checkAvailability()
+                if status.isAvailable {
+                    capabilities = AppleFoundationIntrospection.capabilities()
+                    checkedModel = "apple-intelligence"
+                    errorMessage = nil
+                } else {
+                    capabilities = ModelCapabilities.none
+                    checkedModel = nil
+                    errorMessage = status.description
+                }
+            } else {
+                capabilities = ModelCapabilities.none
+                checkedModel = nil
+                errorMessage = "Apple Intelligence requires macOS 26.0 or later"
+            }
         }
     }
 
@@ -66,8 +97,9 @@ final class ModelCapabilityStore {
         await loadCapabilities(force: true)
     }
 
-    private func introspection() -> OllamaIntrospection? {
+    private func ollamaIntrospection() -> OllamaIntrospection? {
         guard let url = URL(string: settings.ollamaBaseURL) else { return nil }
         return OllamaIntrospection(baseURL: url)
     }
 }
+
