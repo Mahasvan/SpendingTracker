@@ -185,7 +185,7 @@ Quick-add via ⌘N in the dashboard's toolbar.
   2. Stream assistant deltas into `streamingAssistantText`.
   3. On finished response, if it contains tool calls, gate each by per-kind `ToolConfirmPolicy` (auto / confirm / disabled).
   4. Execute approved calls, append tool messages, loop.
-  5. Stop on plain text response or after `maxToolIterations` (8).
+  5. Stop on plain text response, when consecutive tool-call repeats are detected (loop protection), or after 25 tool rounds (ceiling).
 
 ### Sequence
 
@@ -244,7 +244,9 @@ Each `ToolKind` maps to a `ToolConfirmPolicy` in `AppSettings`:
 
 - Streamed text appears live in the chat.
 - The tool-call loop runs after each completion.
-- Max 8 tool iterations per user message (loop guard).
+- Per-turn loop protection: detects 3+ consecutive identical tool calls (name + args) and stops with a graceful message.
+- Hard ceiling: 25 tool rounds per user message before stopping with a graceful message.
+- All tool date/time operations use UTC (parsing, formatting, period calculations).
 - All tool results are JSON; tool errors are stringified into `{"error": ...}` so the model can recover.
 
 ### MCP-readiness
@@ -424,8 +426,9 @@ For breaking schema changes (renamed fields, type changes), add a `VersionedSche
 | Sandbox blocks Ollama HTTP | `com.apple.security.network.client` entitlement |
 | Sandbox blocks user file pick | `com.apple.security.files.user-selected.read-write` + `ENABLE_USER_SELECTED_FILES = readwrite` |
 | Re-importing creates duplicates | UUID-then-name dedup; budget unique by (category, period); merge is idempotent |
-| LLM loops on tools | `maxToolIterations = 8` in ChatService |
+| LLM loops on tools | Per-turn loop detection (3+ consecutive repeats) + 25-round ceiling in ChatService |
 | Tool errors crash the loop | Errors serialized to JSON and re-fed to the model |
+| Date/time timezone confusion | All tool operations use UTC (parsing, formatting, period calculations) |
 | Markdown library overhead | Custom minimal markdown renderer with code blocks, headings, lists, blockquotes |
 
 ### When to refactor

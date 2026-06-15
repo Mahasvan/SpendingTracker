@@ -16,7 +16,12 @@ final class ChatService {
     private let toolContext: ToolContext
     private let settings: AppSettings
     private let capabilityStore: ModelCapabilityStore?
-    private let maxToolIterations = 8
+    
+    // Per-turn loop protection state
+    private var turnToolRounds = 0
+    private let maxToolRoundsCeiling = 25
+    private var recentToolSignatures: [String] = []
+    private let maxConsecutiveRepeats = 3
 
     /// The static portion of the system prompt. The current date is appended at request
     /// time by `makeSystemPrompt()` so it never goes stale while the app stays open.
@@ -28,7 +33,7 @@ final class ChatService {
     - Include category, payment_method, date, and note in the same add_transaction call when known. Do not add then immediately update.
     - update_transaction and delete_transaction need a real UUID id. Fetch ids with list_transactions or search_transactions first; never invent them.
 
-    Dates: call get_current_datetime for relative times (today, yesterday, 3pm). Pass ISO-8601 dates to tools. Include time only when specified. Omit date to default to now.
+    Dates: call get_current_datetime for relative times (today, yesterday, 3pm). All dates must be in UTC. Pass ISO-8601 dates with explicit timezone (e.g., "2025-01-15T10:30:00Z") to tools. Include time only when specified. Omit date to default to now.
 
     Categories: call get_categories before adding/updating, pick the best existing one, and pass it. For income, default category to "Salary" and payment method to "Bank Transfer". Category and payment_method are optional; skip if nothing fits.
     """
@@ -57,12 +62,19 @@ final class ChatService {
         streamingAssistantText = ""
         errorMessage = nil
         pendingConfirmation = nil
+        resetTurnState()
+    }
+
+    private func resetTurnState() {
+        turnToolRounds = 0
+        recentToolSignatures = []
     }
 
     func send(userText: String, images: [String] = []) async {
         guard !isBusy else { return }
         let trimmed = userText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !images.isEmpty else { return }
+        resetTurnState()
         messages.append(LLMMessage(
             role: .user,
             content: trimmed,
@@ -92,7 +104,7 @@ final class ChatService {
     private func runLoop() async {
         isBusy = true
         defer { isBusy = false }
-        await stepStream()
+        await stepStream(toolsEnabled: true)
     }
 
     /// Builds the message list sent to the model: always the system prompt plus a
@@ -114,11 +126,11 @@ final class ChatService {
         return [system] + tail
     }
 
-    private func stepStream() async {
+    private func stepStream(toolsEnabled: Bool) async {
         streamingAssistantText = ""
         let cfg = currentConfig()
         let client = clientFactory(cfg)
-        let schemas = registry.schemas()
+        let schemas = toolsEnabled ? registry.schemas() : []
 
         var aggregatedToolCalls: [LLMToolCall] = []
         var aggregatedText = ""
@@ -150,17 +162,38 @@ final class ChatService {
         messages.append(assistantMessage)
         streamingAssistantText = ""
 
-        if !aggregatedToolCalls.isEmpty {
+        if !aggregatedToolCalls.isEmpty && toolsEnabled {
             await processToolCalls(aggregatedToolCalls)
         }
     }
 
     private func processToolCalls(_ calls: [LLMToolCall]) async {
-        let toolIterations = messages.filter { $0.role == .tool }.count
-        guard toolIterations < maxToolIterations else {
-            messages.append(LLMMessage(role: .assistant, content: "(Stopped: tool iteration limit reached)"))
+        turnToolRounds += 1
+        
+        // Check ceiling
+        guard turnToolRounds <= maxToolRoundsCeiling else {
+            messages.append(LLMMessage(role: .assistant, content: "(Stopped: maximum tool rounds reached. Please provide a final answer without tools.)"))
             return
         }
+        
+        // Detect loops via consecutive repeats
+        let signatures = calls.map { "\($0.name):\($0.arguments.toString())" }
+        for sig in signatures {
+            recentToolSignatures.append(sig)
+            if recentToolSignatures.count > maxConsecutiveRepeats {
+                recentToolSignatures.removeFirst()
+            }
+        }
+        
+        // Check for consecutive repeats
+        if recentToolSignatures.count >= maxConsecutiveRepeats {
+            let allSame = Set(recentToolSignatures).count == 1
+            if allSame {
+                messages.append(LLMMessage(role: .assistant, content: "(Stopped: detected tool loop. Please provide a final answer without tools.)"))
+                return
+            }
+        }
+        
         for call in calls {
             guard let tool = registry.tool(named: call.name) else {
                 messages.append(LLMMessage(
@@ -231,7 +264,7 @@ final class ChatService {
     }
 
     private func continueAfterTool() async {
-        await stepStream()
+        await stepStream(toolsEnabled: true)
     }
 
     private func policyFor(kind: ToolKind) -> ToolConfirmPolicy {

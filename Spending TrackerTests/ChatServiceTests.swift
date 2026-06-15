@@ -131,4 +131,31 @@ struct ChatServiceTests {
         // 2nd request: system + (user, assistant, user) = 4 messages, below the cap.
         #expect(mock.receivedMessageCounts.last == 4)
     }
+
+    @Test @MainActor
+    func detectsToolLoopAndStops() async throws {
+        // Simulate a loop: the model keeps calling the same tool with the same args
+        let loopCall = LLMToolCall(id: "1", name: "get_categories", arguments: .object([:]))
+        let scripted = Array(repeating: ("Checking categories...", [loopCall]), count: 10)
+        let (service, _, _) = try makeService(scripted: scripted)
+        await service.send(userText: "show me categories")
+        // Should stop after detecting the loop (maxConsecutiveRepeats = 3)
+        // The service should have a message indicating it stopped
+        let hasStopMessage = service.messages.contains { $0.content.contains("detected tool loop") }
+        #expect(hasStopMessage)
+    }
+
+    @Test @MainActor
+    func stopsAtToolRoundsCeiling() async throws {
+        // Simulate many different tool calls to hit the ceiling
+        let scripted = (0..<30).map { i in
+            let call = LLMToolCall(id: "\(i)", name: "get_categories", arguments: .object(["page": .number(Double(i))]))
+            return ("Checking page \(i)...", [call])
+        }
+        let (service, _, _) = try makeService(scripted: scripted)
+        await service.send(userText: "list everything")
+        // Should stop at the ceiling (25 rounds)
+        let hasCeilingMessage = service.messages.contains { $0.content.contains("maximum tool rounds reached") }
+        #expect(hasCeilingMessage)
+    }
 }

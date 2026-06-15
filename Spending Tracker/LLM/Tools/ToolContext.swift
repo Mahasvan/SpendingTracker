@@ -88,7 +88,7 @@ enum ToolArgs {
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime]
         if let d = iso.date(from: s) { return d }
-        // Date-times without an explicit timezone, interpreted in the current timezone.
+        // Date-times without an explicit timezone, interpreted in UTC.
         let localFormats = [
             "yyyy-MM-dd'T'HH:mm:ss",
             "yyyy-MM-dd'T'HH:mm",
@@ -98,7 +98,7 @@ enum ToolArgs {
         ]
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
-        f.timeZone = .current
+        f.timeZone = TimeZone(identifier: "UTC")
         for fmt in localFormats {
             f.dateFormat = fmt
             if let d = f.date(from: s) { return d }
@@ -129,6 +129,7 @@ enum TxEncoder {
 extension ISO8601DateFormatter {
     static let shared: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
+        f.timeZone = TimeZone(identifier: "UTC")
         f.formatOptions = [.withInternetDateTime]
         return f
     }()

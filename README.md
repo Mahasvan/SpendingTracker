@@ -125,7 +125,7 @@ Spending Tracker/
 - **MVVM** with `@Observable` view models and protocol-based repositories.
 - **DI** via `AppContainer` — all dependencies wired at app start, testable with mock implementations.
 - **SwiftData** for persistence — in-memory containers used in tests for isolation.
-- **Tool system** — the chatbot registers tools as protocol-conforming objects. Each tool declares a name, description, JSON Schema parameters, and a `run` method. `ChatService` orchestrates the tool-call loop with a configurable iteration limit and per-tool-kind confirmation policy.
+- **Tool system** — the chatbot registers tools as protocol-conforming objects. Each tool declares a name, description, JSON Schema parameters, and a `run` method. `ChatService` orchestrates the tool-call loop with per-turn loop protection (detects consecutive repeats, 25-round ceiling) and per-tool-kind confirmation policy. All tool date/time operations use UTC.
 - **Thinking/reasoning** — thinking-capable Ollama models return reasoning in a separate `thinking` field, which the client folds into the message content as tagged blocks for the UI to render in a collapsible disclosure.
 
 ## Testing

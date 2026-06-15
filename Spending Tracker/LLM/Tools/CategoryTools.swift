@@ -14,9 +14,7 @@ struct GetCategoriesTool: Tool {
         let inc = args["include_archived"]?.boolValue ?? false
         let cats = try ctx.categoryRepo.all(includeArchived: inc)
         return .array(cats.map { c in
-            .object([
-                "name": .string(c.name)
-            ])
+                .string(c.name)
         })
     }
 }
@@ -70,9 +68,7 @@ struct GetPaymentMethodsTool: Tool {
         let inc = args["include_archived"]?.boolValue ?? false
         let items = try ctx.paymentMethodRepo.all(includeArchived: inc)
         return .array(items.map { pm in
-            .object([
-                "name": .string(pm.name)
-            ])
+                .string(pm.name)
         })
     }
 }
