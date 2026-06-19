@@ -228,18 +228,21 @@ struct LLMSettingsView: View {
     @ViewBuilder
     private var reasoningRow: some View {
         if store.hasThinking {
-            Picker("Reasoning effort", selection: $settings.reasoningLevel) {
-                ForEach(ReasoningLevel.allCases) { level in
-                    Text(level.displayName).tag(level)
-                }
-            }
-            Text("Controls how much the model thinks before answering. gpt-oss models can't be turned off; \"Off\" maps to Low.")
+            Toggle("Thinking", isOn: $settings.thinkingEnabled)
+            Text(thinkingHelpText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         } else {
             Text("The selected model does not support reasoning.")
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private var thinkingHelpText: String {
+        if settings.ollamaModel.lowercased().contains("gpt-oss") {
+            return "gpt-oss reasons at \"medium\" when on and can't be fully disabled (it falls back to \"low\")."
+        }
+        return "When on, the model includes a reasoning trace before answering. Turn off for faster, direct replies."
     }
 }
 

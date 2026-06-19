@@ -1,4 +1,4 @@
 // Single source of truth for app versioning.
 // Bump these for each release; all targets inherit from here.
-MARKETING_VERSION = 1.9
-CURRENT_PROJECT_VERSION = 9
+MARKETING_VERSION = 1.10
+CURRENT_PROJECT_VERSION = 10

@@ -139,19 +139,18 @@ final class OllamaClient: LLMClient, @unchecked Sendable {
         return req
     }
 
-    /// Maps the configured reasoning level to Ollama's `think` field.
-    /// gpt-oss models only accept string levels and cannot disable thinking,
-    /// so `.off` maps to "low"; other models use a boolean toggle.
+    /// Maps the configured thinking toggle to Ollama's `think` field.
+    /// Returns nil when the model does not support thinking so the field is
+    /// omitted (sending `think` to a non-thinking model is an error).
+    /// gpt-oss only accepts string levels and cannot be fully disabled, so it
+    /// maps on => "medium" and off => "low"; other models use a boolean.
     private func thinkParameter() -> Any? {
+        guard config.supportsThinking else { return nil }
         let isGptOss = config.model.lowercased().contains("gpt-oss")
         if isGptOss {
-            switch config.reasoning {
-            case .off, .low: return "low"
-            case .medium: return "medium"
-            case .high: return "high"
-            }
+            return config.thinkingEnabled ? "medium" : "low"
         }
-        return config.reasoning == .off ? nil : true
+        return config.thinkingEnabled
     }
 
     private func encodeMessage(_ m: LLMMessage) -> [String: Any] {

@@ -38,12 +38,7 @@ final class AppSettings {
         self.persistChatHistory = defaults.object(forKey: K.persistChat) as? Bool ?? true
         self.maxHistoryMessages = defaults.object(forKey: K.maxHistoryMessages) as? Int ?? 40
         self.requireBiometricUnlock = defaults.object(forKey: K.requireBiometricUnlock) as? Bool ?? true
-        if let raw = defaults.string(forKey: K.reasoningLevel),
-           let r = ReasoningLevel(rawValue: raw) {
-            self.reasoningLevel = r
-        } else {
-            self.reasoningLevel = .medium
-        }
+        self.thinkingEnabled = defaults.object(forKey: K.thinkingEnabled) as? Bool ?? true
     }
 
     var provider: LLMProvider {
@@ -78,8 +73,9 @@ final class AppSettings {
     var requireBiometricUnlock: Bool {
         didSet { defaults.set(requireBiometricUnlock, forKey: K.requireBiometricUnlock) }
     }
-    var reasoningLevel: ReasoningLevel {
-        didSet { defaults.set(reasoningLevel.rawValue, forKey: K.reasoningLevel) }
+    /// Whether thinking-capable Ollama models should produce a reasoning trace.
+    var thinkingEnabled: Bool {
+        didSet { defaults.set(thinkingEnabled, forKey: K.thinkingEnabled) }
     }
 
     private enum K {
@@ -93,6 +89,6 @@ final class AppSettings {
         static let persistChat = "chat.persist"
         static let maxHistoryMessages = "chat.maxHistoryMessages"
         static let requireBiometricUnlock = "security.requireBiometricUnlock"
-        static let reasoningLevel = "llm.reasoning.level"
+        static let thinkingEnabled = "llm.thinking.enabled"
     }
 }

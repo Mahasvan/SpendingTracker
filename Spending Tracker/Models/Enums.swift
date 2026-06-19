@@ -74,23 +74,6 @@ enum ToolConfirmPolicy: String, Codable, CaseIterable, Identifiable, Sendable {
     }
 }
 
-enum ReasoningLevel: String, Codable, CaseIterable, Identifiable, Sendable {
-    case off
-    case low
-    case medium
-    case high
-
-    var id: String { rawValue }
-    var displayName: String {
-        switch self {
-        case .off: return "Off"
-        case .low: return "Low"
-        case .medium: return "Medium"
-        case .high: return "High"
-        }
-    }
-}
-
 enum LLMProvider: String, Codable, CaseIterable, Identifiable, Sendable {
     case ollama
     case appleFoundation

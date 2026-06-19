@@ -26,20 +26,20 @@ final class ChatService {
     /// The static portion of the system prompt. The current date is appended at request
     /// time by `makeSystemPrompt()` so it never goes stale while the app stays open.
     private let systemPromptBody = """
-    You are a spending-tracker assistant. The user manages INR transactions. Use tools only—never guess. Format money as ₹X.XX. Be concise and keep reasoning brief.
+    You are a spending-tracker assistant. The user manages INR transactions. Use tools only. Never guess. Format money as ₹X.XX. Be concise and keep reasoning brief. If there are ambiguities, confirm with the user.
 
     Transaction rules:
     - add_transaction requires: "amount" (positive number) and "type" (exactly "expense" or "income"). Infer type from wording; if unclear, default to "expense". Amount is always positive; direction comes from type.
     - Include category, payment_method, date, and note in the same add_transaction call when known. Do not add then immediately update.
     - update_transaction and delete_transaction need a real UUID id. Fetch ids with list_transactions or search_transactions first; never invent them.
 
-    Dates: call get_current_datetime for relative times (today, yesterday, 3pm). All dates must be in UTC. Pass ISO-8601 dates with explicit timezone (e.g., "2025-01-15T10:30:00Z") to tools. Include time only when specified. Omit date to default to now.
+    Dates: call get_current_datetime for relative times (today, yesterday, 3pm). All dates must be in UTC. Pass ISO-8601 dates with explicit timezone (e.g., "2025-01-15T10:30:00Z") to tools. Include time when available. Pass date when available, omitting will default to now.
 
-    Categories: call get_categories before adding/updating, pick the best existing one, and pass it. For income, default category to "Salary" and payment method to "Bank Transfer". Category and payment_method are optional; skip if nothing fits.
+    Categories: call get_categories before adding/updating, pick the best existing one, and pass it. For income transactions, default category is "Salary" and payment method is "Bank Transfer". For expenditure transactions, the default payment method depends on how the data was given. If it was an image, it is UPI. Otherwise, infer from context, or confirm with user. Category and payment_method are optional; skip if nothing fits.
     """
 
     private func makeSystemPrompt() -> String {
-        "\(systemPromptBody)\n\nToday's date: \(ISO8601DateFormatter.shared.string(from: .now))."
+        "\(systemPromptBody)\n\nToday's date and time: \(ISO8601DateFormatter.shared.string(from: .now))."
     }
 
     init(
@@ -279,13 +279,14 @@ final class ChatService {
         switch settings.provider {
         case .ollama:
             let url = URL(string: settings.ollamaBaseURL) ?? URL(string: "http://localhost:11434")!
-            let reasoning = (capabilityStore?.hasThinking ?? false) ? settings.reasoningLevel : .off
+            let supportsThinking = capabilityStore?.hasThinking ?? false
             return LLMConfig(
                 provider: .ollama,
                 baseURL: url,
                 model: settings.ollamaModel,
                 temperature: settings.temperature,
-                reasoning: reasoning
+                thinkingEnabled: supportsThinking && settings.thinkingEnabled,
+                supportsThinking: supportsThinking
             )
         case .appleFoundation:
             return LLMConfig(
@@ -293,7 +294,8 @@ final class ChatService {
                 baseURL: URL(string: "https://on-device")!, // Not used for on-device model
                 model: "apple-intelligence",
                 temperature: settings.temperature,
-                reasoning: .off
+                thinkingEnabled: false,
+                supportsThinking: false
             )
         }
     }

@@ -26,7 +26,13 @@ struct LLMConfig: Sendable, Equatable {
     var baseURL: URL
     var model: String
     var temperature: Double
-    var reasoning: ReasoningLevel = .off
+    /// Whether the model should produce a reasoning trace. Only meaningful when
+    /// `supportsThinking` is true.
+    var thinkingEnabled: Bool = false
+    /// Whether the selected model supports thinking at all. Used to decide
+    /// whether to send the `think` field to Ollama (sending it to a
+    /// non-thinking model returns an error).
+    var supportsThinking: Bool = false
 }
 
 struct LLMResponse: Sendable {
