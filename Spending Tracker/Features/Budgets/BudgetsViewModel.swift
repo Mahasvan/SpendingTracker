@@ -43,7 +43,7 @@ enum BudgetRangeSelection: Equatable {
     }
 
     func resolveRange() -> DateRange {
-        let cal = Calendar.current
+        let cal = Calendar.utc
         switch self {
         case .thisMonth:
             return .thisMonth

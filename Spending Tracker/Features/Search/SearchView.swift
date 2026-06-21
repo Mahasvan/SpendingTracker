@@ -85,53 +85,128 @@ struct SearchView: View {
                 viewModel.search()
             }
 
-            categoriesChips
-            paymentMethodsChips
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Categories")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                categoriesChips
+            }
+            Divider()
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Payment Methods")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                paymentMethodsChips
+            }
         }
         .padding()
     }
 
     private var categoriesChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(viewModel.categories, id: \.id) { c in
-                    let selected = viewModel.selectedCategoryIds.contains(c.id)
-                    Button {
-                        if selected { viewModel.selectedCategoryIds.remove(c.id) }
-                        else { viewModel.selectedCategoryIds.insert(c.id) }
-                        viewModel.search()
-                    } label: {
-                        Label(c.name, systemImage: c.systemImage)
-                            .padding(.horizontal, 8).padding(.vertical, 4)
-                            .background(selected ? Color(hex: c.colorHex).opacity(0.3) : Color.secondary.opacity(0.1))
-                            .clipShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
+        ScrollableChipStrip {
+            ForEach(viewModel.categories, id: \.id) { c in
+                let selected = viewModel.selectedCategoryIds.contains(c.id)
+                Button {
+                    if selected { viewModel.selectedCategoryIds.remove(c.id) }
+                    else { viewModel.selectedCategoryIds.insert(c.id) }
+                    viewModel.search()
+                } label: {
+                    Label(c.name, systemImage: c.systemImage)
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(selected ? Color(hex: c.colorHex).opacity(0.3) : Color.secondary.opacity(0.1))
+                        .clipShape(Capsule())
                 }
+                .buttonStyle(.plain)
             }
         }
-        .frame(height: 32)
     }
 
     private var paymentMethodsChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(viewModel.paymentMethods, id: \.id) { pm in
-                    let selected = viewModel.selectedPMIds.contains(pm.id)
-                    Button {
-                        if selected { viewModel.selectedPMIds.remove(pm.id) }
-                        else { viewModel.selectedPMIds.insert(pm.id) }
-                        viewModel.search()
-                    } label: {
-                        Label(pm.name, systemImage: pm.kind.systemImage)
-                            .padding(.horizontal, 8).padding(.vertical, 4)
-                            .background(selected ? Color.accentColor.opacity(0.3) : Color.secondary.opacity(0.1))
-                            .clipShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
+        ScrollableChipStrip {
+            ForEach(viewModel.paymentMethods, id: \.id) { pm in
+                let selected = viewModel.selectedPMIds.contains(pm.id)
+                Button {
+                    if selected { viewModel.selectedPMIds.remove(pm.id) }
+                    else { viewModel.selectedPMIds.insert(pm.id) }
+                    viewModel.search()
+                } label: {
+                    Label(pm.name, systemImage: pm.kind.systemImage)
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(selected ? Color.accentColor.opacity(0.3) : Color.secondary.opacity(0.1))
+                        .clipShape(Capsule())
                 }
+                .buttonStyle(.plain)
             }
         }
-        .frame(height: 32)
     }
+}
+
+/// A horizontally scrolling strip of chips that shows leading/trailing chevron
+/// affordances only when there is more content to scroll in that direction.
+private struct ScrollableChipStrip<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    @State private var contentWidth: CGFloat = 0
+    @State private var containerWidth: CGFloat = 0
+    @State private var scrollOffset: CGFloat = 0
+
+    private let space = "chipStrip"
+
+    var body: some View {
+        HStack(spacing: 4) {
+            edgeArrow("chevron.left", active: canScrollLeading)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) { content }
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear
+                                .preference(key: ChipWidthKey.self, value: geo.size.width)
+                                .preference(key: ChipOffsetKey.self, value: geo.frame(in: .named(space)).minX)
+                        }
+                    )
+            }
+            .coordinateSpace(.named(space))
+            .background(
+                GeometryReader { geo in
+                    Color.clear.preference(key: ChipContainerWidthKey.self, value: geo.size.width)
+                }
+            )
+            edgeArrow("chevron.right", active: canScrollTrailing)
+        }
+        .onPreferenceChange(ChipWidthKey.self) { contentWidth = $0 }
+        .onPreferenceChange(ChipContainerWidthKey.self) { containerWidth = $0 }
+        .onPreferenceChange(ChipOffsetKey.self) { scrollOffset = $0 }
+        .frame(height: 32)
+        .animation(.easeInOut(duration: 0.15), value: canScrollLeading)
+        .animation(.easeInOut(duration: 0.15), value: canScrollTrailing)
+    }
+
+    private var canScrollLeading: Bool { scrollOffset < -1 }
+
+    private var canScrollTrailing: Bool {
+        contentWidth - containerWidth + scrollOffset > 1
+    }
+
+    private func edgeArrow(_ systemName: String, active: Bool) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 11, weight: .bold))
+            .foregroundStyle(active ? Color.accentColor : Color.secondary.opacity(0.25))
+            .frame(width: 12)
+            .allowsHitTesting(false)
+    }
+}
+
+private struct ChipWidthKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
+private struct ChipContainerWidthKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
+private struct ChipOffsetKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }

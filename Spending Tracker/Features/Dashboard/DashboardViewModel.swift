@@ -147,7 +147,7 @@ final class DashboardViewModel {
         q.dateTo = window.end
         q.type = .expense
         let txs = (try? txRepo.fetch(q)) ?? []
-        let cal = Calendar.current
+        let cal = Calendar.utc
         var bucket: [Date: Decimal] = [:]
         for tx in txs {
             let day = cal.startOfDay(for: tx.date)

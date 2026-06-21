@@ -26,15 +26,15 @@ struct GetSummaryTool: Tool {
         let periodStr = ToolArgs.string(args, "period") ?? "this_month"
         let range: DateRange
         switch periodStr {
-        case "this_month": range = .thisMonthUTC
-        case "last_month": range = .lastMonthUTC
-        case "last_30_days": range = .last30DaysUTC
+        case "this_month": range = .thisMonth
+        case "last_month": range = .lastMonth
+        case "last_30_days": range = .last30Days
         case "all": range = .allTime
         case "custom":
             let from = ToolArgs.date(args, "date_from") ?? Date(timeIntervalSince1970: 0)
             let to = ToolArgs.date(args, "date_to") ?? .now
             range = DateRange(start: from, end: to)
-        default: range = .thisMonthUTC
+        default: range = .thisMonth
         }
 
         var q = TransactionQuery()
@@ -116,7 +116,7 @@ struct GetBudgetStatusTool: Tool {
 
     func run(arguments args: JSONValue, context ctx: ToolContext) async throws -> JSONValue {
         let budgets = try ctx.budgetRepo.all()
-        let range = DateRange.thisMonthUTC
+        let range = DateRange.thisMonth
         var q = TransactionQuery()
         q.dateFrom = range.start
         q.dateTo = range.end

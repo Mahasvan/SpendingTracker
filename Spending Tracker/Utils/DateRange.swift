@@ -1,11 +1,22 @@
 import Foundation
 
+extension Calendar {
+    /// The single calendar used for all date logic in the app (range boundaries,
+    /// day bucketing, grouping). The app stores and computes in UTC; only the
+    /// presentation layer (views, pickers) renders in the user's local timezone.
+    static let utc: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "UTC")!
+        return c
+    }()
+}
+
 struct DateRange: Equatable, Sendable {
     var start: Date
     var end: Date
 
     static var thisMonth: DateRange {
-        let cal = Calendar.current
+        let cal = Calendar.utc
         let now = Date.now
         let start = cal.date(from: cal.dateComponents([.year, .month], from: now)) ?? now
         let end = cal.date(byAdding: DateComponents(month: 1, second: -1), to: start) ?? now
@@ -13,7 +24,7 @@ struct DateRange: Equatable, Sendable {
     }
 
     static var lastMonth: DateRange {
-        let cal = Calendar.current
+        let cal = Calendar.utc
         let now = Date.now
         let thisMonthStart = cal.date(from: cal.dateComponents([.year, .month], from: now)) ?? now
         let start = cal.date(byAdding: .month, value: -1, to: thisMonthStart) ?? now
@@ -22,7 +33,7 @@ struct DateRange: Equatable, Sendable {
     }
 
     static var last30Days: DateRange {
-        let cal = Calendar.current
+        let cal = Calendar.utc
         let now = Date.now
         let start = cal.date(byAdding: .day, value: -30, to: cal.startOfDay(for: now)) ?? now
         return DateRange(start: start, end: now)
@@ -30,33 +41,6 @@ struct DateRange: Equatable, Sendable {
 
     static var allTime: DateRange {
         DateRange(start: Date(timeIntervalSince1970: 0), end: .distantFuture)
-    }
-
-    static var thisMonthUTC: DateRange {
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = TimeZone(identifier: "UTC")!
-        let now = Date.now
-        let start = cal.date(from: cal.dateComponents([.year, .month], from: now)) ?? now
-        let end = cal.date(byAdding: DateComponents(month: 1, second: -1), to: start) ?? now
-        return DateRange(start: start, end: end)
-    }
-
-    static var lastMonthUTC: DateRange {
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = TimeZone(identifier: "UTC")!
-        let now = Date.now
-        let thisMonthStart = cal.date(from: cal.dateComponents([.year, .month], from: now)) ?? now
-        let start = cal.date(byAdding: .month, value: -1, to: thisMonthStart) ?? now
-        let end = cal.date(byAdding: DateComponents(second: -1), to: thisMonthStart) ?? now
-        return DateRange(start: start, end: end)
-    }
-
-    static var last30DaysUTC: DateRange {
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = TimeZone(identifier: "UTC")!
-        let now = Date.now
-        let start = cal.date(byAdding: .day, value: -30, to: cal.startOfDay(for: now)) ?? now
-        return DateRange(start: start, end: now)
     }
 
     func contains(_ d: Date) -> Bool {
