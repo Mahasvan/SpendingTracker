@@ -43,6 +43,7 @@ struct ChatView: View {
     @State private var requestInputFocus: Bool = false
     @State private var composer = ChatComposerModel()
     @State private var isDropTargeted = false
+    @State private var showCancelConfirm = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -73,8 +74,8 @@ struct ChatView: View {
                             if let confirm = service.pendingConfirmation {
                                 ToolConfirmView(
                                     request: confirm,
-                                    onApprove: { Task { await service.approve(confirm) } },
-                                    onReject: { Task { await service.reject(confirm) } }
+                                    onApprove: { service.approve(confirm) },
+                                    onReject: { service.reject(confirm) }
                                 )
                                 .id("confirm")
                             }
@@ -145,6 +146,19 @@ struct ChatView: View {
         }
         .onAppear { requestInputFocus = true }
         .task { await store.loadCapabilities() }
+        .overlay {
+            if service.isBusy {
+                Button("") { showCancelConfirm = true }
+                    .keyboardShortcut(.escape, modifiers: [])
+                    .hidden()
+            }
+        }
+        .alert("Cancel response?", isPresented: $showCancelConfirm) {
+            Button("Cancel Response", role: .destructive) { service.cancel() }
+            Button("Keep Waiting", role: .cancel) {}
+        } message: {
+            Text("The current response will be stopped and marked as cancelled.")
+        }
         .onDrop(of: [.image, .fileURL], isTargeted: $isDropTargeted) { providers in
             handleProviders(providers)
         }
@@ -193,17 +207,19 @@ struct ChatView: View {
                     Capsule().stroke(isDropTargeted ? Color.accentColor : Color(nsColor: .separatorColor), lineWidth: isDropTargeted ? 1.5 : 0.5)
                 )
 
-                Button(action: sendDraft) {
-                    Image(systemName: "arrow.up")
+                Button {
+                    if service.isBusy { showCancelConfirm = true } else { sendDraft() }
+                } label: {
+                    Image(systemName: service.isBusy ? "stop.fill" : "arrow.up")
                         .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(.white)
                         .frame(width: 32, height: 32)
                         .background(
-                            Circle().fill(canSend ? Color.accentColor : Color.secondary.opacity(0.4))
+                            Circle().fill(service.isBusy ? Color.red : (canSend ? Color.accentColor : Color.secondary.opacity(0.4)))
                         )
                 }
                 .buttonStyle(.plain)
-                .disabled(!canSend)
+                .disabled(!service.isBusy && !canSend)
             }
         }
         .padding(.horizontal, 10)
@@ -237,18 +253,17 @@ struct ChatView: View {
     }
 
     private var canSend: Bool {
-        guard !service.isBusy else { return false }
         guard !store.toolsUnsupported else { return false }
         return !draft.trimmingCharacters(in: .whitespaces).isEmpty || !composer.attachments.isEmpty
     }
 
     private func sendDraft() {
-        guard canSend else { return }
+        guard canSend && !service.isBusy else { return }
         let toSend = draft
         let images = composer.attachments.map(\.base64)
         draft = ""
         composer.clear()
-        Task { await service.send(userText: toSend, images: images) }
+        service.send(userText: toSend, images: images)
     }
 
     private func pickImages() {

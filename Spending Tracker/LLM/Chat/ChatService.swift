@@ -17,6 +17,8 @@ final class ChatService {
     private let settings: AppSettings
     private let capabilityStore: ModelCapabilityStore?
     
+    private var activeTask: Task<Void, Never>?
+
     // Per-turn loop protection state
     private var turnToolRounds = 0
     private let maxToolRoundsCeiling = 25
@@ -100,37 +102,64 @@ final class ChatService {
         !(capabilityStore?.hasVision ?? false) || !settings.useLLMVision
     }
 
-    func send(userText: String, images: [String] = []) async {
+    func send(userText: String, images: [String] = []) {
         guard !isBusy else { return }
         let trimmed = userText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !images.isEmpty else { return }
         resetTurnState()
-
-        var ocrTexts: [String]? = nil
-        if shouldUseOCR && !images.isEmpty {
-            var results: [String] = []
-            for base64 in images {
-                results.append(await ImageOCRService.recognizeText(inBase64: base64) ?? "")
+        errorMessage = nil
+        isBusy = true
+        activeTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            var ocrTexts: [String]? = nil
+            if self.shouldUseOCR && !images.isEmpty {
+                var results: [String] = []
+                for base64 in images {
+                    guard !Task.isCancelled else { break }
+                    results.append(await ImageOCRService.recognizeText(inBase64: base64) ?? "")
+                }
+                if !Task.isCancelled { ocrTexts = results }
             }
-            ocrTexts = results
+            guard !Task.isCancelled else { return }
+            self.messages.append(LLMMessage(
+                role: .user,
+                content: trimmed,
+                images: images.isEmpty ? nil : images,
+                ocrTexts: ocrTexts
+            ))
+            await self.stepStream(toolsEnabled: true)
+            if !Task.isCancelled {
+                self.isBusy = false
+                self.activeTask = nil
+            }
         }
-
-        messages.append(LLMMessage(
-            role: .user,
-            content: trimmed,
-            images: images.isEmpty ? nil : images,
-            ocrTexts: ocrTexts
-        ))
-        await runLoop()
     }
 
-    func approve(_ request: ToolConfirmRequest) async {
+    func cancel() {
+        guard isBusy else { return }
+        activeTask?.cancel()
+        activeTask = nil
+        streamingAssistantText = ""
+        pendingConfirmation = nil
+        isBusy = false
+        resetTurnState()
+    }
+
+    func approve(_ request: ToolConfirmRequest) {
         guard pendingConfirmation?.id == request.id else { return }
         pendingConfirmation = nil
-        await executeApproved(call: request.call)
+        isBusy = true
+        activeTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.executeApproved(call: request.call)
+            if !Task.isCancelled {
+                self.isBusy = false
+                self.activeTask = nil
+            }
+        }
     }
 
-    func reject(_ request: ToolConfirmRequest) async {
+    func reject(_ request: ToolConfirmRequest) {
         guard pendingConfirmation?.id == request.id else { return }
         pendingConfirmation = nil
         messages.append(LLMMessage(
@@ -139,13 +168,15 @@ final class ChatService {
             name: request.call.name,
             toolCallId: request.call.id
         ))
-        await continueAfterTool()
-    }
-
-    private func runLoop() async {
         isBusy = true
-        defer { isBusy = false }
-        await stepStream(toolsEnabled: true)
+        activeTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.continueAfterTool()
+            if !Task.isCancelled {
+                self.isBusy = false
+                self.activeTask = nil
+            }
+        }
     }
 
     /// Builds the message list sent to the model: always the system prompt plus a
@@ -188,6 +219,9 @@ final class ChatService {
                     break
                 }
             }
+        } catch is CancellationError {
+            streamingAssistantText = ""
+            return
         } catch {
             errorMessage = (error as? LLMError)?.errorDescription ?? error.localizedDescription
             return
@@ -234,7 +268,6 @@ final class ChatService {
                 return
             }
         }
-        
         for call in calls {
             guard let tool = registry.tool(named: call.name) else {
                 messages.append(LLMMessage(
@@ -267,8 +300,6 @@ final class ChatService {
     }
 
     private func executeApproved(call: LLMToolCall) async {
-        isBusy = true
-        defer { isBusy = false }
         await execute(call: call)
         // After approving and executing, also process any *remaining* tool calls in the last assistant
         // message that were waiting for this confirmation.
