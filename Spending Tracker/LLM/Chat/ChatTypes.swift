@@ -13,6 +13,9 @@ struct LLMMessage: Codable, Sendable, Equatable {
     var toolCallId: String?
     var toolCalls: [LLMToolCall]?
     var images: [String]?
+    /// Pre-computed OCR results, one entry per image (empty string if no text found).
+    /// Used only locally - never forwarded to the LLM API.
+    var ocrTexts: [String]?
 }
 
 struct LLMToolSchema: Codable, Sendable, Equatable {

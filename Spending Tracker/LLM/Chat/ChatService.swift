@@ -41,7 +41,31 @@ final class ChatService {
     """
 
     private func makeSystemPrompt() -> String {
-        "\(systemPromptBody)\n\nToday's date and time: \(ISO8601DateFormatter.shared.string(from: .now))."
+        var prompt = systemPromptBody
+        if shouldUseOCR {
+            prompt += "\n\nImage handling: When the user attaches images, the text is extracted using OCR and included in the message as \"[Image text]\" or \"[Image N text]\" blocks. Treat this extracted text as the image content."
+        }
+        return "\(prompt)\n\nToday's date and time: \(ISO8601DateFormatter.shared.string(from: .now))."
+    }
+
+    /// Transforms a user message for the API: injects OCR text into content and strips
+    /// both `images` and `ocrTexts` so neither is forwarded to the model.
+    private func transformForRequest(_ message: LLMMessage) -> LLMMessage {
+        guard message.role == .user,
+              let ocrTexts = message.ocrTexts else { return message }
+        let blocks = ocrTexts.enumerated().compactMap { i, text -> String? in
+            guard !text.isEmpty else { return nil }
+            let header = ocrTexts.count > 1 ? "[Image \(i + 1) text]\n" : "[Image text]\n"
+            return header + text
+        }
+        var copy = message
+        if !blocks.isEmpty {
+            let block = blocks.joined(separator: "\n\n")
+            copy.content = copy.content.isEmpty ? block : "\(copy.content)\n\n\(block)"
+        }
+        copy.images = nil
+        copy.ocrTexts = nil
+        return copy
     }
 
     init(
@@ -72,15 +96,30 @@ final class ChatService {
         recentToolSignatures = []
     }
 
+    private var shouldUseOCR: Bool {
+        !(capabilityStore?.hasVision ?? false) || !settings.useLLMVision
+    }
+
     func send(userText: String, images: [String] = []) async {
         guard !isBusy else { return }
         let trimmed = userText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !images.isEmpty else { return }
         resetTurnState()
+
+        var ocrTexts: [String]? = nil
+        if shouldUseOCR && !images.isEmpty {
+            var results: [String] = []
+            for base64 in images {
+                results.append(await ImageOCRService.recognizeText(inBase64: base64) ?? "")
+            }
+            ocrTexts = results
+        }
+
         messages.append(LLMMessage(
             role: .user,
             content: trimmed,
-            images: images.isEmpty ? nil : images
+            images: images.isEmpty ? nil : images,
+            ocrTexts: ocrTexts
         ))
         await runLoop()
     }
@@ -119,13 +158,13 @@ final class ChatService {
         let limit = max(1, settings.maxHistoryMessages)
         let rest = messages.dropFirst()
         guard rest.count > limit else {
-            return [system] + rest
+            return [system] + rest.map(transformForRequest)
         }
         var tail = Array(rest.suffix(limit))
         while let first = tail.first, first.role == .tool {
             tail.removeFirst()
         }
-        return [system] + tail
+        return [system] + tail.map(transformForRequest)
     }
 
     private func stepStream(toolsEnabled: Bool) async {

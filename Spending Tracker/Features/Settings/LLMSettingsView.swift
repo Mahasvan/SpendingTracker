@@ -39,6 +39,7 @@ struct LLMSettingsView: View {
             // MARK: - Model capabilities
             Section("Model Capabilities") {
                 capabilitiesRow
+                imageInputRow
             }
 
             // MARK: - Reasoning (Ollama-only, when model supports it)
@@ -210,6 +211,33 @@ struct LLMSettingsView: View {
                 .foregroundStyle(.secondary)
         } else {
             Text("Capabilities unknown. Tap Refresh.")
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var imageInputRow: some View {
+        let hasVision = store.capabilities?.hasVision ?? false
+        if hasVision {
+            Toggle("Use LLM Vision capabilities", isOn: $settings.useLLMVision)
+            Text(settings.useLLMVision
+                 ? "Images are sent directly to the model for visual analysis."
+                 : "Images are recognised on-device with Apple Vision and sent as text.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else {
+            HStack {
+                Label("Image input", systemImage: "text.viewfinder")
+                Spacer()
+                Text("System OCR")
+                    .font(.caption)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(Color.secondary.opacity(0.15)))
+                    .foregroundStyle(.secondary)
+            }
+            Text("Vision is unavailable. Images will be OCR'd on-device with Apple Vision and sent as text.")
+                .font(.caption)
                 .foregroundStyle(.secondary)
         }
     }

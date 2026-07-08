@@ -13,6 +13,9 @@ struct MessageBubbleView: View {
                 if let images = message.images, !images.isEmpty {
                     imagesView(images)
                 }
+                if let ocrTexts = message.ocrTexts, ocrTexts.contains(where: { !$0.isEmpty }) {
+                    OCRDisclosure(ocrTexts: ocrTexts)
+                }
                 contentView
                 if let calls = message.toolCalls, !calls.isEmpty {
                     ToolCallsDisclosure(calls: calls, results: toolResults)

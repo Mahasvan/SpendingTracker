@@ -167,15 +167,15 @@ struct ChatView: View {
                 attachmentsRow
             }
             HStack(spacing: 8) {
-                if store.hasVision {
-                    Button(action: pickImages) {
-                        Image(systemName: "photo.on.rectangle")
-                            .font(.system(size: 16))
-                            .frame(width: 32, height: 32)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Attach images for this vision model")
+                Button(action: pickImages) {
+                    Image(systemName: "photo.on.rectangle")
+                        .font(.system(size: 16))
+                        .frame(width: 32, height: 32)
                 }
+                .buttonStyle(.plain)
+                .help(store.hasVision && settings.useLLMVision
+                      ? "Attach images for visual analysis"
+                      : "Attach images (text extracted via System OCR)")
                 SpellCheckedTextField(
                     text: $draft,
                     focusRequest: $requestInputFocus,

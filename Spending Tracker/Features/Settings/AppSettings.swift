@@ -39,6 +39,7 @@ final class AppSettings {
         self.maxHistoryMessages = defaults.object(forKey: K.maxHistoryMessages) as? Int ?? 40
         self.requireBiometricUnlock = defaults.object(forKey: K.requireBiometricUnlock) as? Bool ?? true
         self.thinkingEnabled = defaults.object(forKey: K.thinkingEnabled) as? Bool ?? true
+        self.useLLMVision = defaults.object(forKey: K.useLLMVision) as? Bool ?? true
     }
 
     var provider: LLMProvider {
@@ -77,6 +78,11 @@ final class AppSettings {
     var thinkingEnabled: Bool {
         didSet { defaults.set(thinkingEnabled, forKey: K.thinkingEnabled) }
     }
+    /// When true, images are sent directly to the model using its native vision capability.
+    /// When false (or when the model has no vision), images are OCR'd on-device instead.
+    var useLLMVision: Bool {
+        didSet { defaults.set(useLLMVision, forKey: K.useLLMVision) }
+    }
 
     private enum K {
         static let provider = "llm.provider"
@@ -90,5 +96,6 @@ final class AppSettings {
         static let maxHistoryMessages = "chat.maxHistoryMessages"
         static let requireBiometricUnlock = "security.requireBiometricUnlock"
         static let thinkingEnabled = "llm.thinking.enabled"
+        static let useLLMVision = "llm.vision.enabled"
     }
 }
