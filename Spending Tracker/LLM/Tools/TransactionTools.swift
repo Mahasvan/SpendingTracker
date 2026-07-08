@@ -2,7 +2,7 @@ import Foundation
 
 struct AddTransactionTool: Tool {
     let name = "add_transaction"
-    let description = "Add a new transaction (expense or income). Returns the created transaction."
+    let description = "Add a new transaction (expense or income). Returns the created transaction's ID."
     let kind: ToolKind = .write
     var parameters: JSONValue {
         JSONSchemaBuilder.object(
@@ -48,7 +48,7 @@ struct AddTransactionTool: Tool {
             paymentMethod: pm
         )
         try ctx.transactionRepo.add(tx)
-        return TxEncoder.encode(tx)
+        return .string(tx.id.uuidString)
     }
 }
 
