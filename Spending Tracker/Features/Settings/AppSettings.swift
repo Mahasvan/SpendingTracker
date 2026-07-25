@@ -40,6 +40,7 @@ final class AppSettings {
         self.requireBiometricUnlock = defaults.object(forKey: K.requireBiometricUnlock) as? Bool ?? true
         self.thinkingEnabled = defaults.object(forKey: K.thinkingEnabled) as? Bool ?? true
         self.useLLMVision = defaults.object(forKey: K.useLLMVision) as? Bool ?? true
+        self.ollamaTimeout = defaults.object(forKey: K.ollamaTimeout) as? Double ?? 120
     }
 
     var provider: LLMProvider {
@@ -83,6 +84,11 @@ final class AppSettings {
     var useLLMVision: Bool {
         didSet { defaults.set(useLLMVision, forKey: K.useLLMVision) }
     }
+    /// HTTP request timeout (in seconds) for Ollama calls. Local models can take a
+    /// while to load into memory before the first token, so this should be generous.
+    var ollamaTimeout: Double {
+        didSet { defaults.set(ollamaTimeout, forKey: K.ollamaTimeout) }
+    }
 
     private enum K {
         static let provider = "llm.provider"
@@ -97,5 +103,6 @@ final class AppSettings {
         static let requireBiometricUnlock = "security.requireBiometricUnlock"
         static let thinkingEnabled = "llm.thinking.enabled"
         static let useLLMVision = "llm.vision.enabled"
+        static let ollamaTimeout = "llm.ollama.timeout"
     }
 }

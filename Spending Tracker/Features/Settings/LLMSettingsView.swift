@@ -33,6 +33,19 @@ struct LLMSettingsView: View {
                         Text("Temperature: \(String(format: "%.2f", settings.temperature))")
                         Slider(value: $settings.temperature, in: 0...1)
                     }
+                    HStack {
+                        Text("Request timeout")
+                        Spacer()
+                        TextField("", value: $settings.ollamaTimeout, format: .number)
+                            .frame(width: 60)
+                            .multilineTextAlignment(.trailing)
+                        Text("s")
+                        Stepper("", value: $settings.ollamaTimeout, in: 10...600, step: 5)
+                            .labelsHidden()
+                    }
+                    Text("How long to wait for Ollama before aborting. Local models can take a while to load before the first token, so pick a generous value.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
 

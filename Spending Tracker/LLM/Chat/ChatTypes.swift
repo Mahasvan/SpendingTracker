@@ -36,6 +36,9 @@ struct LLMConfig: Sendable, Equatable {
     /// whether to send the `think` field to Ollama (sending it to a
     /// non-thinking model returns an error).
     var supportsThinking: Bool = false
+    /// HTTP request timeout in seconds. Only meaningful for HTTP-based providers
+    /// (e.g. Ollama). On-device providers ignore it.
+    var timeout: Double = 120
 }
 
 struct LLMResponse: Sendable {

@@ -123,8 +123,9 @@ struct DeleteTransactionTool: Tool {
 
 struct ListTransactionsTool: Tool {
     let name = "list_transactions"
-    let description = "List transactions with optional filters. Returns up to 'limit' transactions sorted by date descending."
+    let description = "List transactions with optional filters. Returns up to 'limit' transactions (max 20) sorted by date descending. If 'truncated' is true, narrow the filters to see more."
     let kind: ToolKind = .read
+    private static let maxReturned = 20
     var parameters: JSONValue {
         JSONSchemaBuilder.object(
             properties: [
@@ -133,7 +134,7 @@ struct ListTransactionsTool: Tool {
                 "type": JSONSchemaBuilder.string("Filter type", enumValues: ["expense", "income"]),
                 "category": JSONSchemaBuilder.string("Category name"),
                 "payment_method": JSONSchemaBuilder.string("Payment method name"),
-                "limit": JSONSchemaBuilder.integer("Max results (default 50)")
+                "limit": JSONSchemaBuilder.integer("Max results (default 20, capped at 20)")
             ]
         )
     }
@@ -151,11 +152,13 @@ struct ListTransactionsTool: Tool {
            let pm = try ctx.paymentMethodRepo.findByName(pmName) {
             q.paymentMethodIds = [pm.id]
         }
-        q.limit = ToolArgs.int(args, "limit") ?? 50
+        let requested = ToolArgs.int(args, "limit") ?? Self.maxReturned
+        q.limit = min(requested, Self.maxReturned)
         q.sortBy = .dateDescending
         let txs = try ctx.transactionRepo.fetch(q)
         return .object([
             "count": .number(Double(txs.count)),
+            "truncated": .bool(txs.count >= Self.maxReturned),
             "transactions": .array(txs.map(TxEncoder.encode))
         ])
     }
@@ -163,15 +166,16 @@ struct ListTransactionsTool: Tool {
 
 struct SearchTransactionsTool: Tool {
     let name = "search_transactions"
-    let description = "Full-text search over transaction notes, category names, and payment method names."
+    let description = "Full-text search over transaction notes, category names, and payment method names. Returns up to 20 matches; if 'truncated' is true, refine the query."
     let kind: ToolKind = .read
+    private static let maxReturned = 20
     var parameters: JSONValue {
         JSONSchemaBuilder.object(
             properties: [
                 "query": JSONSchemaBuilder.string("Search text"),
                 "date_from": JSONSchemaBuilder.string("ISO-8601 lower bound"),
                 "date_to": JSONSchemaBuilder.string("ISO-8601 upper bound"),
-                "limit": JSONSchemaBuilder.integer("Max results (default 50)")
+                "limit": JSONSchemaBuilder.integer("Max results (default 20, capped at 20)")
             ],
             required: ["query"]
         )
@@ -185,11 +189,13 @@ struct SearchTransactionsTool: Tool {
         q.textQuery = query
         q.dateFrom = ToolArgs.date(args, "date_from")
         q.dateTo = ToolArgs.date(args, "date_to")
-        q.limit = ToolArgs.int(args, "limit") ?? 50
+        let requested = ToolArgs.int(args, "limit") ?? Self.maxReturned
+        q.limit = min(requested, Self.maxReturned)
         q.sortBy = .dateDescending
         let txs = try ctx.transactionRepo.fetch(q)
         return .object([
             "count": .number(Double(txs.count)),
+            "truncated": .bool(txs.count >= Self.maxReturned),
             "transactions": .array(txs.map(TxEncoder.encode))
         ])
     }

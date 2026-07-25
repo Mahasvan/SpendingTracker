@@ -120,6 +120,7 @@ final class OllamaClient: LLMClient, @unchecked Sendable {
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.timeoutInterval = config.timeout
 
         let sanitized = sanitizeHistory(messages)
 

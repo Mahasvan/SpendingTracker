@@ -9,15 +9,19 @@ final class ChatService {
     var streamingAssistantText: String = ""
     var errorMessage: String?
 
-    var pendingConfirmation: ToolConfirmRequest?
+    var pendingConfirmation: ToolConfirmRequest? { pendingConfirmations.first }
 
     private let clientFactory: @MainActor (LLMConfig) -> LLMClient
     private let registry: ToolRegistry
     private let toolContext: ToolContext
     private let settings: AppSettings
     private let capabilityStore: ModelCapabilityStore?
-    
+
     private var activeTask: Task<Void, Never>?
+    /// Tool calls awaiting user confirmation, in order. The UI sees the head via
+    /// `pendingConfirmation`. Approving/rejecting pops the head; if more remain
+    /// they surface one at a time. Drained on `reset`/`cancel`.
+    private var pendingConfirmations: [ToolConfirmRequest] = []
 
     // Per-turn loop protection state
     private var turnToolRounds = 0
@@ -26,7 +30,7 @@ final class ChatService {
     private let maxConsecutiveRepeats = 3
 
     /// The static portion of the system prompt. The current date is appended at request
-    /// time by `makeSystemPrompt()` so it never goes stale while the app stays open.
+    /// time by `SystemPromptBuilder.make()` so it never goes stale while the app stays open.
     private let systemPromptBody = """
     You are a spending-tracker assistant. The user manages INR transactions. Use tools only. Never guess. Format money as ₹X.XX. Be concise and keep reasoning brief. If there are ambiguities, confirm with the user.
 
@@ -43,11 +47,7 @@ final class ChatService {
     """
 
     private func makeSystemPrompt() -> String {
-        var prompt = systemPromptBody
-        if shouldUseOCR {
-            prompt += "\n\nImage handling: When the user attaches images, the text is extracted using OCR and included in the message as \"[Image text]\" or \"[Image N text]\" blocks. Treat this extracted text as the image content."
-        }
-        return "\(prompt)\n\nToday's date and time: \(ISO8601DateFormatter.shared.string(from: .now))."
+        SystemPromptBuilder.make(body: systemPromptBody, includeOCRClause: shouldUseOCR)
     }
 
     /// Transforms a user message for the API: injects OCR text into content and strips
@@ -89,7 +89,7 @@ final class ChatService {
         messages = [LLMMessage(role: .system, content: makeSystemPrompt())]
         streamingAssistantText = ""
         errorMessage = nil
-        pendingConfirmation = nil
+        pendingConfirmations.removeAll()
         resetTurnState()
     }
 
@@ -103,7 +103,7 @@ final class ChatService {
     }
 
     func send(userText: String, images: [String] = []) {
-        guard !isBusy else { return }
+        guard !isBusy && pendingConfirmations.isEmpty else { return }
         let trimmed = userText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !images.isEmpty else { return }
         resetTurnState()
@@ -140,18 +140,19 @@ final class ChatService {
         activeTask?.cancel()
         activeTask = nil
         streamingAssistantText = ""
-        pendingConfirmation = nil
+        pendingConfirmations.removeAll()
         isBusy = false
         resetTurnState()
     }
 
     func approve(_ request: ToolConfirmRequest) {
         guard pendingConfirmation?.id == request.id else { return }
-        pendingConfirmation = nil
+        pendingConfirmations.removeFirst()
         isBusy = true
         activeTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            await self.executeApproved(call: request.call)
+            await self.execute(call: request.call)
+            await self.drainConfirmationsOrContinue()
             if !Task.isCancelled {
                 self.isBusy = false
                 self.activeTask = nil
@@ -161,7 +162,7 @@ final class ChatService {
 
     func reject(_ request: ToolConfirmRequest) {
         guard pendingConfirmation?.id == request.id else { return }
-        pendingConfirmation = nil
+        pendingConfirmations.removeFirst()
         messages.append(LLMMessage(
             role: .tool,
             content: "{\"error\": \"User rejected tool call\"}",
@@ -171,11 +172,20 @@ final class ChatService {
         isBusy = true
         activeTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            await self.continueAfterTool()
+            await self.drainConfirmationsOrContinue()
             if !Task.isCancelled {
                 self.isBusy = false
                 self.activeTask = nil
             }
+        }
+    }
+
+    /// After a confirmation is resolved, either surface the next queued
+    /// confirmation (no model round-trip needed) or continue the turn by
+    /// streaming the next assistant response.
+    private func drainConfirmationsOrContinue() async {
+        if pendingConfirmations.isEmpty {
+            await continueAfterTool()
         }
     }
 
@@ -268,6 +278,8 @@ final class ChatService {
                 return
             }
         }
+        // Execute auto/disabled calls immediately; queue confirm-required calls
+        // for sequential user approval. The turn continues once the queue drains.
         for call in calls {
             guard let tool = registry.tool(named: call.name) else {
                 messages.append(LLMMessage(
@@ -290,28 +302,12 @@ final class ChatService {
                     toolCallId: call.id
                 ))
             case .confirm:
-                pendingConfirmation = ToolConfirmRequest(id: UUID(), call: call, kind: tool.kind)
-                return
+                pendingConfirmations.append(ToolConfirmRequest(id: UUID(), call: call, kind: tool.kind))
             }
         }
-        if pendingConfirmation == nil {
+        if pendingConfirmations.isEmpty {
             await continueAfterTool()
         }
-    }
-
-    private func executeApproved(call: LLMToolCall) async {
-        await execute(call: call)
-        // After approving and executing, also process any *remaining* tool calls in the last assistant
-        // message that were waiting for this confirmation.
-        if let last = messages.last(where: { $0.role == .assistant && $0.toolCalls != nil }) {
-            let alreadyHandled = Set(messages.compactMap { $0.toolCallId })
-            let remaining = (last.toolCalls ?? []).filter { !alreadyHandled.contains($0.id) }
-            if !remaining.isEmpty {
-                await processToolCalls(remaining)
-                if pendingConfirmation != nil { return }
-            }
-        }
-        await continueAfterTool()
     }
 
     private func execute(call: LLMToolCall) async {
@@ -328,7 +324,7 @@ final class ChatService {
             let msg = (error as? ToolError)?.errorDescription ?? error.localizedDescription
             messages.append(LLMMessage(
                 role: .tool,
-                content: "{\"error\": \"\(escapeJSON(msg))\"}",
+                content: Self.encodeToolError(msg),
                 name: call.name,
                 toolCallId: call.id
             ))
@@ -348,33 +344,23 @@ final class ChatService {
     }
 
     private func currentConfig() -> LLMConfig {
-        switch settings.provider {
-        case .ollama:
-            let url = URL(string: settings.ollamaBaseURL) ?? URL(string: "http://localhost:11434")!
-            let supportsThinking = capabilityStore?.hasThinking ?? false
-            return LLMConfig(
-                provider: .ollama,
-                baseURL: url,
-                model: settings.ollamaModel,
-                temperature: settings.temperature,
-                thinkingEnabled: supportsThinking && settings.thinkingEnabled,
-                supportsThinking: supportsThinking
-            )
-        case .appleFoundation:
-            return LLMConfig(
-                provider: .appleFoundation,
-                baseURL: URL(string: "https://on-device")!, // Not used for on-device model
-                model: "apple-intelligence",
-                temperature: settings.temperature,
-                thinkingEnabled: false,
-                supportsThinking: false
-            )
-        }
+        LLMConfigBuilder.make(
+            provider: settings.provider,
+            ollamaBaseURL: settings.ollamaBaseURL,
+            ollamaModel: settings.ollamaModel,
+            temperature: settings.temperature,
+            thinkingEnabled: settings.thinkingEnabled,
+            supportsThinking: capabilityStore?.hasThinking ?? false,
+            timeout: settings.ollamaTimeout
+        )
     }
 
-    private func escapeJSON(_ s: String) -> String {
-        s.replacingOccurrences(of: "\"", with: "\\\"")
-            .replacingOccurrences(of: "\n", with: " ")
+    private static func encodeToolError(_ message: String) -> String {
+        guard let data = try? JSONSerialization.data(withJSONObject: ["error": message]),
+              let json = String(data: data, encoding: .utf8) else {
+            return "{\"error\":\"tool error\"}"
+        }
+        return json
     }
 }
 
@@ -382,4 +368,55 @@ struct ToolConfirmRequest: Identifiable, Equatable {
     let id: UUID
     let call: LLMToolCall
     let kind: ToolKind
+}
+
+/// Builds the system prompt sent to the model. Kept separate from `ChatService`
+/// so prompt content can evolve (per-provider variants, few-shot examples,
+/// dynamic tool hints) without bloating the orchestrator.
+enum SystemPromptBuilder {
+    static func make(body: String, includeOCRClause: Bool) -> String {
+        var prompt = body
+        if includeOCRClause {
+            prompt += "\n\nImage handling: When the user attaches images, the text is extracted using OCR and included in the message as \"[Image text]\" or \"[Image N text]\" blocks. Treat this extracted text as the image content."
+        }
+        return "\(prompt)\n\nToday's date and time: \(ISO8601DateFormatter.shared.string(from: .now))."
+    }
+}
+
+/// Maps persisted `AppSettings` + live capability flags into the wire `LLMConfig`.
+/// One place to update when a provider adds a field, instead of branching in
+/// `ChatService`.
+enum LLMConfigBuilder {
+    static func make(
+        provider: LLMProvider,
+        ollamaBaseURL: String,
+        ollamaModel: String,
+        temperature: Double,
+        thinkingEnabled: Bool,
+        supportsThinking: Bool,
+        timeout: Double
+    ) -> LLMConfig {
+        switch provider {
+        case .ollama:
+            let url = URL(string: ollamaBaseURL) ?? URL(string: "http://localhost:11434")!
+            return LLMConfig(
+                provider: .ollama,
+                baseURL: url,
+                model: ollamaModel,
+                temperature: temperature,
+                thinkingEnabled: supportsThinking && thinkingEnabled,
+                supportsThinking: supportsThinking,
+                timeout: timeout
+            )
+        case .appleFoundation:
+            return LLMConfig(
+                provider: .appleFoundation,
+                baseURL: URL(string: "https://on-device")!, // Not used for on-device model
+                model: "apple-intelligence",
+                temperature: temperature,
+                thinkingEnabled: false,
+                supportsThinking: false
+            )
+        }
+    }
 }
