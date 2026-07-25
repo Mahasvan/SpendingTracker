@@ -105,22 +105,60 @@ struct ThinkingDisclosure: View {
             .help(streaming ? "Model is thinking…" : "Show the model's reasoning")
 
             if isExpanded {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
-                        if !block.isEmpty {
-                            MarkdownRenderer(text: block)
-                                .foregroundStyle(.secondary)
-                                .padding(10)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 8).fill(.background.secondary)
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(.separator.opacity(0.4), lineWidth: 0.5)
-                                )
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
+                            if !block.isEmpty {
+                                MarkdownRenderer(text: block)
+                                    .foregroundStyle(.secondary)
+                                    .padding(10)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8).fill(.background.secondary)
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(.separator.opacity(0.4), lineWidth: 0.5)
+                                    )
+                            }
                         }
                     }
+                    .padding(.vertical, 4)
+                }
+                .frame(maxHeight: 220)
+                .background(
+                    RoundedRectangle(cornerRadius: 8).fill(.background.secondary)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(.separator.opacity(0.4), lineWidth: 0.5)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(alignment: .bottom) {
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                        .frame(height: 36)
+                        .mask(
+                            LinearGradient(
+                                stops: [
+                                    .init(color: .clear, location: 0),
+                                    .init(color: .white, location: 1)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .clipShape(
+                            UnevenRoundedRectangle(
+                                cornerRadii: .init(
+                                    topLeading: 0,
+                                    bottomLeading: 8,
+                                    bottomTrailing: 8,
+                                    topTrailing: 0
+                                )
+                            )
+                        )
+                        .allowsHitTesting(false)
                 }
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
