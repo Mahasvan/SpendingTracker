@@ -34,7 +34,7 @@ struct LLMSettingsView: View {
                         Slider(value: $settings.temperature, in: 0...1)
                     }
                     HStack {
-                        Text("Request timeout")
+                        Text("First-token timeout")
                         Spacer()
                         TextField("", value: $settings.ollamaTimeout, format: .number)
                             .frame(width: 60)
@@ -43,7 +43,7 @@ struct LLMSettingsView: View {
                         Stepper("", value: $settings.ollamaTimeout, in: 10...600, step: 5)
                             .labelsHidden()
                     }
-                    Text("How long to wait for Ollama before aborting. Local models can take a while to load before the first token, so pick a generous value.")
+                    Text("How long to wait for the model to start responding before aborting. Once streaming begins, the connection stays open until the response completes — this only guards against a model that never starts producing output. Local models can take a while to load, so pick a generous value.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

@@ -36,8 +36,11 @@ struct LLMConfig: Sendable, Equatable {
     /// whether to send the `think` field to Ollama (sending it to a
     /// non-thinking model returns an error).
     var supportsThinking: Bool = false
-    /// HTTP request timeout in seconds. Only meaningful for HTTP-based providers
-    /// (e.g. Ollama). On-device providers ignore it.
+    /// First-token timeout in seconds for streaming requests. The connection is
+    /// aborted only if the model produces no output within this window; once
+    /// streaming begins, the connection stays open until the response completes.
+    /// Only meaningful for HTTP-based providers (e.g. Ollama). On-device providers
+    /// ignore it.
     var timeout: Double = 120
 }
 
@@ -57,6 +60,7 @@ enum LLMError: Error, LocalizedError {
     case decoding(String)
     case transport(Error)
     case invalidConfig(String)
+    case firstTokenTimeout(Double)
 
     var errorDescription: String? {
         switch self {
@@ -64,6 +68,7 @@ enum LLMError: Error, LocalizedError {
         case .decoding(let s): return "Decoding error: \(s)"
         case .transport(let e): return "Transport: \(e.localizedDescription)"
         case .invalidConfig(let s): return "Invalid LLM config: \(s)"
+        case .firstTokenTimeout(let seconds): return "No response from model within \(Int(seconds))s. The model may still be loading or is unresponsive."
         }
     }
 }

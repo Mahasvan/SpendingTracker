@@ -84,8 +84,11 @@ final class AppSettings {
     var useLLMVision: Bool {
         didSet { defaults.set(useLLMVision, forKey: K.useLLMVision) }
     }
-    /// HTTP request timeout (in seconds) for Ollama calls. Local models can take a
-    /// while to load into memory before the first token, so this should be generous.
+    /// First-token timeout (in seconds) for Ollama streaming calls. The connection
+    /// is aborted only if the model produces no output within this window; once
+    /// streaming begins, the connection stays open until the response completes.
+    /// Local models can take a while to load into memory before the first token,
+    /// so this should be generous.
     var ollamaTimeout: Double {
         didSet { defaults.set(ollamaTimeout, forKey: K.ollamaTimeout) }
     }

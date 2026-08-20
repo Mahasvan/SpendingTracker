@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 private enum ThinkingStreamState {
     case none
@@ -35,7 +36,14 @@ final class OllamaClient: LLMClient, @unchecked Sendable {
 
     func stream(messages: [LLMMessage], tools: [LLMToolSchema]) -> AsyncThrowingStream<LLMStreamChunk, Error> {
         AsyncThrowingStream { continuation in
-            let task = Task {
+            // Shared state between the stream task and the first-token watchdog.
+            // OSAllocatedUnfairLock provides the synchronization the compiler
+            // requires for cross-task capture of mutable state.
+            let hasFirstToken = OSAllocatedUnfairLock(initialState: false)
+            let timedOut = OSAllocatedUnfairLock(initialState: false)
+
+            // Stream task — does the actual HTTP work and yields chunks.
+            let streamTask = Task {
                 do {
                     let req = try makeRequest(messages: messages, tools: tools, stream: true)
                     let (bytes, resp) = try await session.bytes(for: req)
@@ -48,10 +56,14 @@ final class OllamaClient: LLMClient, @unchecked Sendable {
                         let body = String(data: buf, encoding: .utf8) ?? ""
                         throw LLMError.badStatus(http.statusCode, body)
                     }
+
                     var accumulated = ""
                     var accumulatedToolCalls: [LLMToolCall] = []
                     var thinkingState: ThinkingStreamState = .none
                     for try await line in bytes.lines {
+                        if !hasFirstToken.withLock({ $0 }) {
+                            hasFirstToken.withLock { $0 = true }
+                        }
                         guard let data = line.data(using: .utf8), !data.isEmpty else { continue }
                         guard let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
                         if let msg = obj["message"] as? [String: Any] {
@@ -107,11 +119,33 @@ final class OllamaClient: LLMClient, @unchecked Sendable {
                         }
                     }
                     continuation.finish()
+                } catch is CancellationError {
+                    // Distinguish watchdog-triggered timeout from user-initiated cancel.
+                    // `timedOut` is set before `streamTask.cancel()` in the watchdog, so
+                    // if we see it here the cancellation came from the first-token
+                    // timeout, not the user.
+                    continuation.finish(throwing: timedOut.withLock({ $0 }) ? LLMError.firstTokenTimeout(config.timeout) : nil)
                 } catch {
                     continuation.finish(throwing: error)
                 }
             }
-            continuation.onTermination = { _ in task.cancel() }
+
+            // First-token watchdog: if no data arrives within `config.timeout`,
+            // cancel the stream and surface a timeout. Once the first line arrives
+            // (hasFirstToken == true) the watchdog is a no-op. The stream runs
+            // unbounded after the first token — we never want to drop a connection
+            // that is actively streaming.
+            let watchdog = Task {
+                try? await Task.sleep(nanoseconds: UInt64(config.timeout * 1_000_000_000))
+                guard !hasFirstToken.withLock({ $0 }) else { return }
+                timedOut.withLock { $0 = true }
+                streamTask.cancel()
+            }
+
+            continuation.onTermination = { _ in
+                streamTask.cancel()
+                watchdog.cancel()
+            }
         }
     }
 
@@ -120,7 +154,10 @@ final class OllamaClient: LLMClient, @unchecked Sendable {
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.timeoutInterval = config.timeout
+        // Streaming: no hard deadline — the first-token watchdog in `stream` handles
+        // the idle-before-first-token case, and once tokens flow we never want the
+        // connection killed mid-generation. Non-streaming: keep the total deadline.
+        req.timeoutInterval = stream ? .greatestFiniteMagnitude : config.timeout
 
         let sanitized = sanitizeHistory(messages)
 
