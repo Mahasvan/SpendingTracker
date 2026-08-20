@@ -45,3 +45,22 @@ struct RootView: View {
         }
     }
 }
+
+#if DEBUG
+@MainActor
+private struct RootViewPreview: View {
+    let container: AppContainer
+    init() {
+        container = PreviewSupport.makeContainer()
+        _ = PreviewSupport.seedSampleTransactions(in: container.modelContainer)
+    }
+    var body: some View {
+        RootView(container: container)
+            .frame(width: 900, height: 600)
+    }
+}
+
+#Preview {
+    RootViewPreview()
+}
+#endif

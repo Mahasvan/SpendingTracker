@@ -135,3 +135,38 @@ struct TransactionEditorView: View {
         dismiss()
     }
 }
+
+#if DEBUG
+#Preview("Create") {
+    TransactionEditorView(
+        mode: .create,
+        categories: [
+            PreviewSupport.sampleCategory(name: "Food", color: "#E57373", icon: "fork.knife"),
+            PreviewSupport.sampleCategory(name: "Groceries", color: "#81C784", icon: "cart"),
+            PreviewSupport.sampleCategory(name: "Transport", color: "#64B5F6", icon: "car.fill"),
+        ],
+        paymentMethods: [
+            PreviewSupport.samplePaymentMethod(name: "UPI", kind: .upi),
+            PreviewSupport.samplePaymentMethod(name: "Cash", kind: .cash),
+        ],
+        onSave: { _ in },
+        onDelete: nil
+    )
+}
+
+#Preview("Edit") {
+    let tx = PreviewSupport.sampleTransaction(note: "Lunch at cafe", amount: 450)
+    TransactionEditorView(
+        mode: .edit(tx),
+        categories: [
+            PreviewSupport.sampleCategory(name: "Food", color: "#E57373", icon: "fork.knife"),
+            PreviewSupport.sampleCategory(name: "Groceries", color: "#81C784", icon: "cart"),
+        ],
+        paymentMethods: [
+            PreviewSupport.samplePaymentMethod(name: "UPI", kind: .upi),
+        ],
+        onSave: { _ in },
+        onDelete: { _ in }
+    )
+}
+#endif

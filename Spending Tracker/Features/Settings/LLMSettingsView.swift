@@ -287,3 +287,11 @@ struct LLMSettingsView: View {
     }
 }
 
+#if DEBUG
+#Preview {
+    let settings = PreviewSupport.makeSettings()
+    LLMSettingsView(settings: settings, store: ModelCapabilityStore(settings: settings))
+        .frame(width: 500, height: 400)
+}
+#endif
+

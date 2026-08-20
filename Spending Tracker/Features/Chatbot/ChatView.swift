@@ -333,3 +333,24 @@ struct ChatView: View {
         return map
     }
 }
+
+#if DEBUG
+@MainActor
+private struct ChatViewPreview: View {
+    let container: AppContainer
+    init() {
+        container = PreviewSupport.makeContainer()
+        _ = PreviewSupport.seedSampleTransactions(in: container.modelContainer)
+    }
+    var body: some View {
+        ChatView(
+            service: container.chatService,
+            settings: container.settings,
+            store: container.capabilityStore
+        )
+        .frame(width: 700, height: 600)
+    }
+}
+
+#Preview { ChatViewPreview() }
+#endif

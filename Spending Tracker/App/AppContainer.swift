@@ -23,10 +23,10 @@ final class AppContainer {
     let dashboardVM: DashboardViewModel
     let chatService: ChatService
 
-    init(modelContainer: ModelContainer) {
+    init(modelContainer: ModelContainer, defaults: UserDefaults = .standard) {
         self.modelContainer = modelContainer
         let context = modelContainer.mainContext
-        self.settings = AppSettings()
+        self.settings = AppSettings(defaults: defaults)
         self.capabilityStore = ModelCapabilityStore(settings: settings)
 
         let txRepo = SwiftDataTransactionRepository(context: context)

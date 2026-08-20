@@ -210,3 +210,25 @@ private struct ChipOffsetKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
+
+#if DEBUG
+@MainActor
+private struct SearchViewPreview: View {
+    let vm: SearchViewModel
+    init() {
+        let container = PreviewSupport.makeContainer()
+        _ = PreviewSupport.seedSampleTransactions(in: container.modelContainer)
+        vm = SearchViewModel(
+            repo: container.transactionRepo,
+            categoryRepo: container.categoryRepo,
+            pmRepo: container.paymentMethodRepo
+        )
+    }
+    var body: some View {
+        NavigationStack { SearchView(viewModel: vm) }
+            .frame(width: 600, height: 500)
+    }
+}
+
+#Preview { SearchViewPreview() }
+#endif

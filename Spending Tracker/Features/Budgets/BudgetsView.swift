@@ -282,3 +282,25 @@ private struct BudgetRangeSheet: View {
         }
     }
 }
+
+#if DEBUG
+@MainActor
+private struct BudgetsViewPreview: View {
+    let vm: BudgetsViewModel
+    init() {
+        let container = PreviewSupport.makeContainer()
+        _ = PreviewSupport.seedSampleTransactions(in: container.modelContainer)
+        vm = BudgetsViewModel(
+            repo: container.budgetRepo,
+            txRepo: container.transactionRepo,
+            categoryRepo: container.categoryRepo
+        )
+    }
+    var body: some View {
+        NavigationStack { BudgetsView(viewModel: vm) }
+            .frame(width: 600, height: 500)
+    }
+}
+
+#Preview { BudgetsViewPreview() }
+#endif

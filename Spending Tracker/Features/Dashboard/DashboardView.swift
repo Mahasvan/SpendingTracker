@@ -68,3 +68,30 @@ struct DashboardView: View {
         }
     }
 }
+
+#if DEBUG
+@MainActor
+private struct DashboardViewPreview: View {
+    let dashVM: DashboardViewModel
+    let txVM: TransactionsViewModel
+    init() {
+        let container = PreviewSupport.makeContainer()
+        _ = PreviewSupport.seedSampleTransactions(in: container.modelContainer)
+        let budgetsVM = BudgetsViewModel(
+            repo: container.budgetRepo, txRepo: container.transactionRepo,
+            categoryRepo: container.categoryRepo
+        )
+        dashVM = DashboardViewModel(txRepo: container.transactionRepo, budgetsVM: budgetsVM)
+        txVM = TransactionsViewModel(
+            repo: container.transactionRepo, categoryRepo: container.categoryRepo,
+            pmRepo: container.paymentMethodRepo
+        )
+    }
+    var body: some View {
+        NavigationStack { DashboardView(viewModel: dashVM, txViewModel: txVM) }
+            .frame(width: 800, height: 600)
+    }
+}
+
+#Preview { DashboardViewPreview() }
+#endif

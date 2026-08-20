@@ -114,3 +114,36 @@ struct MessageBubbleView: View {
         }
     }
 }
+
+#if DEBUG
+#Preview("User message") {
+    MessageBubbleView(message: LLMMessage(
+        role: .user,
+        content: "Add ₹250 for lunch paid by UPI"
+    ))
+    .padding()
+}
+
+#Preview("Assistant message") {
+    MessageBubbleView(message: LLMMessage(
+        role: .assistant,
+        content: "I've added a ₹250.00 expense for lunch, categorized as **Food** and paid via **UPI**."
+    ))
+    .padding()
+}
+
+#Preview("Assistant with tool call") {
+    MessageBubbleView(message: LLMMessage(
+        role: .assistant,
+        content: "Let me add that transaction for you.",
+        toolCalls: [LLMToolCall(id: "1", name: "add_transaction",
+                                arguments: .object([
+                                    "amount": .number(250),
+                                    "type": .string("expense"),
+                                    "category": .string("Food"),
+                                    "payment_method": .string("UPI")
+                                ]))]
+    ))
+    .padding()
+}
+#endif

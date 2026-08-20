@@ -130,3 +130,11 @@ private struct SuggestionCard: View {
         .help(suggestion.prompt)
     }
 }
+
+#if DEBUG
+#Preview {
+    ChatSuggestionsView(suggestions: ChatSuggestion.defaults, onSelect: { _ in })
+        .padding()
+        .frame(width: 500)
+}
+#endif

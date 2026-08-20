@@ -37,3 +37,9 @@ struct LockView: View {
         .frame(minWidth: 420, minHeight: 320)
     }
 }
+
+#if DEBUG
+#Preview {
+    LockView(lock: AppLockService(settings: PreviewSupport.makeSettings()))
+}
+#endif

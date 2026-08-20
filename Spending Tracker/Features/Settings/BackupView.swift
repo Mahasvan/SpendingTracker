@@ -149,3 +149,20 @@ struct BackupDocument: FileDocument {
         FileWrapper(regularFileWithContents: data)
     }
 }
+
+#if DEBUG
+@MainActor
+private struct BackupViewPreview: View {
+    let service: ImportExportService
+    init() {
+        let container = PreviewSupport.makeContainer()
+        service = container.importExportService
+    }
+    var body: some View {
+        BackupView(service: service)
+            .frame(width: 500, height: 400)
+    }
+}
+
+#Preview { BackupViewPreview() }
+#endif

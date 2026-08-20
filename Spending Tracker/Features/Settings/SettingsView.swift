@@ -24,3 +24,25 @@ struct SettingsView: View {
         .navigationTitle("Settings")
     }
 }
+
+#if DEBUG
+@MainActor
+private struct SettingsViewPreview: View {
+    let container: AppContainer
+    init() { container = PreviewSupport.makeContainer() }
+    var body: some View {
+        NavigationStack {
+            SettingsView(
+                categoryRepo: container.categoryRepo,
+                pmRepo: container.paymentMethodRepo,
+                settings: container.settings,
+                importExportService: container.importExportService,
+                capabilityStore: container.capabilityStore
+            )
+        }
+        .frame(width: 600, height: 600)
+    }
+}
+
+#Preview { SettingsViewPreview() }
+#endif

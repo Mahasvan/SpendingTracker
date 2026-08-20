@@ -55,3 +55,33 @@ struct ToolConfirmView: View {
         }
     }
 }
+
+#if DEBUG
+#Preview("Write tool") {
+    let call = LLMToolCall(id: "1", name: "add_transaction",
+                           arguments: .object([
+                               "amount": .number(250),
+                               "type": .string("expense"),
+                               "note": .string("Lunch at cafe")
+                           ]))
+    ToolConfirmView(
+        request: ToolConfirmRequest(id: UUID(), call: call, kind: .write),
+        onApprove: {},
+        onReject: {}
+    )
+    .padding()
+    .frame(width: 400)
+}
+
+#Preview("Delete tool") {
+    let call = LLMToolCall(id: "2", name: "delete_transaction",
+                           arguments: .object(["id": .string(UUID().uuidString)]))
+    ToolConfirmView(
+        request: ToolConfirmRequest(id: UUID(), call: call, kind: .delete),
+        onApprove: {},
+        onReject: {}
+    )
+    .padding()
+    .frame(width: 400)
+}
+#endif

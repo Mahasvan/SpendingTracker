@@ -18,3 +18,10 @@ struct SecuritySettingsView: View {
         .navigationTitle("Security")
     }
 }
+
+#if DEBUG
+#Preview {
+    SecuritySettingsView(settings: PreviewSupport.makeSettings())
+        .frame(width: 500, height: 300)
+}
+#endif
