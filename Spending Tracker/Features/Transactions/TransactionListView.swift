@@ -16,7 +16,9 @@ struct TransactionListView: View {
             } else {
                 List {
                     ForEach(viewModel.transactions, id: \.id) { tx in
-                        TransactionRowView(transaction: tx)
+                        TransactionRowView(transaction: tx) { row in
+                            await viewModel.categorize(row)
+                        }
                             .contentShape(Rectangle())
                             .onTapGesture { editing = tx }
                             .contextMenu {
@@ -30,6 +32,14 @@ struct TransactionListView: View {
         }
         .navigationTitle("Transactions")
         .toolbar {
+            ToolbarItem {
+                Button {
+                    Task { await viewModel.categorizeAllUncategorized() }
+                } label: {
+                    Label("Categorize All", systemImage: "apple.intelligence")
+                }
+                .help("Categorize uncategorized transactions with Apple Intelligence")
+            }
             ToolbarItem {
                 Button { editorPresented = true } label: {
                     Label("Add", systemImage: "plus")
@@ -69,3 +79,25 @@ struct TransactionListView: View {
         }
     }
 }
+
+#if DEBUG
+@MainActor
+private struct TransactionListViewPreview: View {
+    let vm: TransactionsViewModel
+    init() {
+        let container = PreviewSupport.makeContainer()
+        _ = PreviewSupport.seedSampleTransactions(in: container.modelContainer)
+        vm = TransactionsViewModel(
+            repo: container.transactionRepo,
+            categoryRepo: container.categoryRepo,
+            pmRepo: container.paymentMethodRepo
+        )
+    }
+    var body: some View {
+        NavigationStack { TransactionListView(viewModel: vm) }
+            .frame(width: 600, height: 500)
+    }
+}
+
+#Preview { TransactionListViewPreview() }
+#endif

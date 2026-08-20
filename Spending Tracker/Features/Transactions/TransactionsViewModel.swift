@@ -60,4 +60,69 @@ final class TransactionsViewModel {
             errorMessage = error.localizedDescription
         }
     }
+
+    /// Categorizes a single transaction using Apple Intelligence. No-op with an
+    /// informative error on devices without Apple Intelligence / macOS 26.
+    func categorize(_ tx: Transaction) async {
+        guard #available(macOS 26.0, iOS 26.0, *) else {
+            errorMessage = "Categorization requires Apple Intelligence (macOS 26+)."
+            return
+        }
+        let status = AppleFoundationIntrospection.checkAvailability()
+        guard status.isAvailable else {
+            errorMessage = status.description
+            return
+        }
+        do {
+            let categories = try categoryRepo.all(includeArchived: false).map(\.name)
+            guard !categories.isEmpty else {
+                errorMessage = "No categories configured."
+                return
+            }
+            let lastResort = categories.last { $0.lowercased() == "other" } ?? categories.last
+            let categorizer = TransactionCategorizer()
+            _ = try await categorizer.categorize([tx], categories: categories, lastResort: lastResort) { uuid, name in
+                guard let resolved = try categoryRepo.findByName(name) else { return }
+                guard let target = try repo.find(id: uuid) else { return }
+                target.category = resolved
+                try repo.update(target)
+            }
+            load()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Categorizes all currently-loaded uncategorized transactions in one pass.
+    func categorizeAllUncategorized() async {
+        guard #available(macOS 26.0, iOS 26.0, *) else {
+            errorMessage = "Categorization requires Apple Intelligence (macOS 26+)."
+            return
+        }
+        let status = AppleFoundationIntrospection.checkAvailability()
+        guard status.isAvailable else {
+            errorMessage = status.description
+            return
+        }
+        let targets = transactions.filter { $0.category == nil }
+        guard !targets.isEmpty else { return }
+        do {
+            let categories = try categoryRepo.all(includeArchived: false).map(\.name)
+            guard !categories.isEmpty else {
+                errorMessage = "No categories configured."
+                return
+            }
+            let lastResort = categories.last { $0.lowercased() == "other" } ?? categories.last
+            let categorizer = TransactionCategorizer()
+            _ = try await categorizer.categorize(targets, categories: categories, lastResort: lastResort) { uuid, name in
+                guard let resolved = try categoryRepo.findByName(name) else { return }
+                guard let target = try repo.find(id: uuid) else { return }
+                target.category = resolved
+                try repo.update(target)
+            }
+            load()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
 }

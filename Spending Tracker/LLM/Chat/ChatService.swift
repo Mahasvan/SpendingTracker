@@ -41,9 +41,12 @@ final class ChatService {
 
     Dates: call get_current_datetime for relative times (today, yesterday, 3pm). All dates must be in UTC. Pass ISO-8601 dates with explicit timezone (e.g., "2025-01-15T10:30:00Z") to tools. Include time when available. Pass date when available, omitting will default to now.
 
-    Categories: call get_categories before adding/updating, pick the best existing one, and pass it. For income transactions, default category is "Salary" and payment method is "Bank Transfer". For expenditure transactions, the default payment method depends on how the data was given. If it was an image, it is UPI. Otherwise, infer from context, or confirm with user. Category and payment_method are optional; skip if nothing fits.
+    Categorization: Use the categorize_transactions tool to assign categories with Apple Intelligence — do NOT manually call get_categories and then update_transaction one by one. This is the preferred path whenever the user asks to categorize, classify, or organize transactions, or mentions uncategorized/unclassified spending. Default scope is "uncategorized"; use scope="all" only when the user explicitly asks to re-categorize everything. After it runs, briefly report how many were categorized vs skipped. If the user is viewing or asking about transactions that lack categories, proactively offer to categorize them.
+        
+    In extreme cases, you can call get_categories to get a list of categories, pick the best existing one, and pass it. For income transactions, default category is "Salary" and payment method is "Bank Transfer", unless reasonably sure otherwise. For expenditure transactions, the default payment method depends on how the data was given. If it was an image, it is UPI. Otherwise, infer from context, or confirm with user. Category and payment_method are optional. Try to find a best fit, but skip if nothing fits.
 
-    Tool call batching: When multiple tool calls are needed to fulfill a request, issue all independent calls in the same response turn rather than waiting for each result. For example, call get_categories and get_current_datetime together if both are needed, then proceed with add_transaction once you have the results.
+
+    Tool call batching: Whenever possible, issue all independent calls in the same response turn rather than waiting for each result. For example, call get_categories and get_current_datetime together if both are needed, then proceed with all add_transaction calls in the same turn  once you have the results. 
     """
 
     private func makeSystemPrompt() -> String {
